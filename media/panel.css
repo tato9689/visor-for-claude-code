@@ -1,0 +1,42 @@
+body {
+  padding: 8px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+}
+#status { opacity: 0.7; margin: 4px 0 8px; }
+.card {
+  border: 1px solid var(--vscode-panel-border, #8883);
+  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 8px;
+  background: var(--vscode-editor-background);
+}
+.head { display: flex; gap: 6px; align-items: baseline; margin-bottom: 6px; }
+.name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.meta { opacity: 0.6; font-size: 0.9em; white-space: nowrap; }
+.thumb { display: block; max-width: 100%; max-height: 260px; margin: 0 auto; border-radius: 4px; cursor: zoom-in; }
+video.thumb { cursor: default; }
+.missing { opacity: 0.6; font-style: italic; padding: 8px 0; }
+.actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 3px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button.wide { width: 100%; padding: 6px; }
+#viewer {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+}
+#viewer[hidden] { display: none; }
+#viewer-body img { max-width: 96vw; max-height: 92vh; }
+#close { position: absolute; top: 8px; right: 8px; font-size: 1.2em; }

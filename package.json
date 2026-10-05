@@ -1,0 +1,108 @@
+{
+  "name": "preview-for-claude-code",
+  "displayName": "Preview for Claude Code",
+  "description": "See the images, SVG, HTML and video Claude Code reads or creates, in a side panel. Works over Remote-SSH.",
+  "version": "0.0.1",
+  "publisher": "tato9689",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tato9689/preview-for-claude-code"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "preview",
+    "images",
+    "remote-ssh",
+    "ai"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudePreview",
+          "title": "Claude Preview",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudePreview": [
+        {
+          "type": "webview",
+          "id": "claudePreview.panel",
+          "name": "Previews"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "claudePreview.clear",
+        "title": "Clear",
+        "category": "Claude Preview",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "claudePreview.togglePause",
+        "title": "Pause / Resume",
+        "category": "Claude Preview",
+        "icon": "$(debug-pause)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "claudePreview.togglePause",
+          "when": "view == claudePreview.panel",
+          "group": "navigation"
+        },
+        {
+          "command": "claudePreview.clear",
+          "when": "view == claudePreview.panel",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Preview for Claude Code",
+      "properties": {
+        "claudePreview.maxItems": {
+          "type": "number",
+          "default": 60,
+          "description": "How many previews to load from the session history when the panel opens."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "package": "npm run typecheck && npm run build && vsce package --no-dependencies",
+    "e2e": "xvfb-run -a -s \"-screen 0 1400x900x24\" node test/e2e/run.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}
