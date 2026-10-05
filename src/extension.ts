@@ -39,7 +39,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     view.webview.options = {
       enableScripts: true,
       // Claude puede leer o generar archivos en cualquier sitio del disco.
-      localResourceRoots: [vscode.Uri.file("/"), this.ctx.extensionUri],
+      localResourceRoots: [...diskRoots(), this.ctx.extensionUri],
     };
     view.webview.html = this.html(view.webview);
     view.webview.onDidReceiveMessage((m) => this.onMessage(m));
@@ -215,6 +215,17 @@ function keepGuess(e: MediaEvent): boolean {
   } catch {
     return false;
   }
+}
+
+/** Raíces del disco: "/" en Linux/macOS; cada unidad (C:\\, D:\\…) en Windows. */
+function diskRoots(): vscode.Uri[] {
+  if (process.platform !== "win32") return [vscode.Uri.file("/")];
+  const roots: vscode.Uri[] = [];
+  for (let c = 65; c <= 90; c++) {
+    const drive = `${String.fromCharCode(c)}:\\`;
+    if (fs.existsSync(drive)) roots.push(vscode.Uri.file(drive));
+  }
+  return roots;
 }
 
 function fileAsDataUri(file: string, mime: string): string | undefined {
