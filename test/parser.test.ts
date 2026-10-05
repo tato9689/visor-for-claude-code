@@ -100,3 +100,14 @@ describe("rutas en comandos de terminal", () => {
     expect(p.parseLine(result("b1", "ok"))[0]).toMatchObject({ kind: "image", path: "/root/media/foto.jpg", action: "write", guess: true });
   });
 });
+
+describe("rutas de Windows", () => {
+  it("reconoce C:\\ y C:/ en comandos", async () => {
+    const { pathsInCommand } = await import("../src/parser");
+    expect(pathsInCommand(`python gen.py -o C:\\Juegos\\roguelike\\cap.png`)).toEqual(["C:\\Juegos\\roguelike\\cap.png"]);
+    expect(pathsInCommand(`magick in.png "D:/Fotos/sal.webp"`)).toEqual(["D:/Fotos/sal.webp"]);
+  });
+  it("codifica la carpeta de proyecto de Windows", () => {
+    expect(encodeProjectDir("C:\\Juegos\\roguelike")).toBe("C--Juegos-roguelike");
+  });
+});

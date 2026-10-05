@@ -2,7 +2,7 @@
   "name": "preview-for-claude-code",
   "displayName": "Preview for Claude Code",
   "description": "See the images, SVG, HTML and video Claude Code reads or creates, in a side panel. Works over Remote-SSH.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "tato9689",
   "license": "MIT",
   "repository": {

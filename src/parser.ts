@@ -32,7 +32,8 @@ export function kindFromPath(p: string): MediaKind | undefined {
 const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
 // Rutas absolutas (o ~/) a archivos multimedia dentro de un comando de terminal.
-const PATH_IN_COMMAND = /(?:^|[\s"'=(>])((?:~|\/)[^\s"'<>|;&()]*\.(?:png|jpe?g|gif|webp|avif|svg|html?|mp4|webm|mov))(?=$|[\s"'<>|;&)])/gi;
+// También rutas de Windows: C:\\carpeta\\foto.png o C:/carpeta/foto.png.
+const PATH_IN_COMMAND = /(?:^|[\s"'=(>])((?:~|\/|[a-zA-Z]:[\\/])[^\s"'<>|;&()]*\.(?:png|jpe?g|gif|webp|avif|svg|html?|mp4|webm|mov))(?=$|[\s"'<>|;&)])/gi;
 
 /** Rutas multimedia que aparecen en un comando de Bash (las imágenes de Gemini/fal se generan así). */
 export function pathsInCommand(cmd: string): string[] {

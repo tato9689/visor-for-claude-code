@@ -204,7 +204,11 @@ iframe{flex:1;border:0;background:#fff}</style></head><body>
 function keepGuess(e: MediaEvent): boolean {
   if (!e.guess) return true;
   if (!e.path) return false;
-  const file = e.path.startsWith("~/") ? path.join(os.homedir(), e.path.slice(2)) : e.path;
+  let file = e.path.startsWith("~/") ? path.join(os.homedir(), e.path.slice(2)) : e.path;
+  // En Windows, la terminal de Claude (Git Bash) escribe /c/Juegos/… para C:\\Juegos\\…
+  const gitBash = /^\/([a-zA-Z])\/(.*)$/.exec(file);
+  if (process.platform === "win32" && gitBash) file = `${gitBash[1].toUpperCase()}:\\${gitBash[2]}`;
+  file = path.normalize(file);
   try {
     const st = fs.statSync(file);
     if (!st.isFile()) return false;
