@@ -89,7 +89,7 @@ describe("encodeProjectDir", () => {
 describe("rutas en comandos de terminal", () => {
   it("saca rutas multimedia de un comando de Bash", async () => {
     const { pathsInCommand } = await import("../src/parser");
-    expect(pathsInCommand(`python3 gen.py --out /root/media/gato.png && cp "/tmp/a b.jpg" ~/x/y.webp`)).toEqual(["/root/media/gato.png", "~/x/y.webp"]);
+    expect(pathsInCommand(`python3 gen.py --out /root/media/gato.png && cp "/tmp/a b.jpg" ~/x/y.webp`)).toEqual(["/tmp/a b.jpg", "/root/media/gato.png", "~/x/y.webp"]);
     expect(pathsInCommand("ls -la /root/media")).toEqual([]);
     expect(pathsInCommand("curl https://x.com/a.png -o out/rel.png")).toEqual([]);
   });
@@ -106,8 +106,24 @@ describe("rutas de Windows", () => {
     const { pathsInCommand } = await import("../src/parser");
     expect(pathsInCommand(`python gen.py -o C:\\Juegos\\roguelike\\cap.png`)).toEqual(["C:\\Juegos\\roguelike\\cap.png"]);
     expect(pathsInCommand(`magick in.png "D:/Fotos/sal.webp"`)).toEqual(["D:/Fotos/sal.webp"]);
+    expect(pathsInCommand(`python gen.py -o "C:\\Mis juegos\\portada final.png"`)).toEqual(["C:\\Mis juegos\\portada final.png"]);
+    expect(pathsInCommand(`echo "hola" 'adiós'`)).toEqual([]);
   });
   it("codifica la carpeta de proyecto de Windows", () => {
     expect(encodeProjectDir("C:\\Juegos\\roguelike")).toBe("C--Juegos-roguelike");
+  });
+});
+
+describe("subagentFiles", () => {
+  it("encuentra los historiales de subagentes de una sesión", async () => {
+    const { subagentFiles } = await import("../src/sessions");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cp-sub-"));
+    const session = path.join(dir, "abc.jsonl");
+    fs.writeFileSync(session, "");
+    expect(subagentFiles(session)).toEqual([]);
+    fs.mkdirSync(path.join(dir, "abc", "subagents"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "abc", "subagents", "agent-1.jsonl"), "");
+    fs.writeFileSync(path.join(dir, "abc", "subagents", "agent-1.meta.json"), "{}");
+    expect(subagentFiles(session)).toEqual([path.join(dir, "abc", "subagents", "agent-1.jsonl")]);
   });
 });

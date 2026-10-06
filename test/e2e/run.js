@@ -15,7 +15,7 @@ async function main() {
     extensionDevelopmentPath: path.resolve(__dirname, "../.."),
     extensionTestsPath: path.resolve(__dirname, "suite.js"),
     launchArgs: [workspace, "--disable-extensions", "--disable-gpu", "--no-sandbox"],
-    extensionTestsEnv: { CLAUDE_CONFIG_DIR: claudeDir, CP_WORKSPACE: workspace, CP_SHOT: process.env.CP_SHOT || "" },
+    extensionTestsEnv: { CLAUDE_CONFIG_DIR: claudeDir, CP_WORKSPACE: workspace, CP_SHOTS: process.env.CP_SHOTS || "" },
   });
 }
 main().catch((e) => { console.error(e); process.exit(1); });

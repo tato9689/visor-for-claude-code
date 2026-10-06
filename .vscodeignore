@@ -7,3 +7,5 @@ tsconfig.json
 vitest.config.*
 *.vsix
 dist/*.map
+docs/**
+media/marketplace-icon.svg

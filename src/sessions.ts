@@ -30,6 +30,14 @@ export function findActiveSession(workspacePath: string | undefined): string | u
   return best?.file;
 }
 
+/** Historiales de los subagentes de una sesión: <sesión>/subagents/*.jsonl */
+export function subagentFiles(sessionFile: string): string[] {
+  const dir = path.join(sessionFile.replace(/\.jsonl$/, ""), "subagents");
+  return safeReaddir(dir)
+    .filter((n) => n.endsWith(".jsonl"))
+    .map((n) => path.join(dir, n));
+}
+
 function newestJsonl(dir: string): string | undefined {
   let best: { file: string; mtime: number } | undefined;
   for (const name of safeReaddir(dir)) {

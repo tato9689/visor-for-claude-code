@@ -1,11 +1,43 @@
 body {
-  padding: 8px;
+  padding: 0 8px 8px;
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   color: var(--vscode-foreground);
   background: var(--vscode-sideBar-background);
 }
+.codicon { vertical-align: text-bottom; }
+
+/* ---- barra de filtros ---- */
+#toolbar {
+  position: sticky; top: 0; z-index: 5;
+  padding: 8px 0 6px;
+  background: var(--vscode-sideBar-background);
+  display: flex; flex-direction: column; gap: 6px;
+}
+#kinds { display: flex; gap: 2px; }
+#kinds button { flex: 1; padding: 3px 0; }
+.row { display: flex; gap: 4px; }
+#search {
+  flex: 1; min-width: 0;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  padding: 3px 6px;
+  font: inherit;
+}
+#search:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+#selbar { display: flex; gap: 4px; align-items: center; }
+#selbar[hidden] { display: none; }
+#selcount { flex: 1; opacity: 0.8; }
+button.on {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
 #status { opacity: 0.7; margin: 4px 0 8px; }
+
+/* ---- tarjetas ---- */
 .card {
   border: 1px solid var(--vscode-panel-border, #8883);
   border-radius: 6px;
@@ -13,13 +45,35 @@ body {
   margin-bottom: 8px;
   background: var(--vscode-editor-background);
 }
-.head { display: flex; gap: 6px; align-items: baseline; margin-bottom: 6px; }
+.card[hidden] { display: none; }
+.card.selected { border-color: var(--vscode-focusBorder); box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
+.head { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .meta { opacity: 0.6; font-size: 0.9em; white-space: nowrap; }
+.badge {
+  font-size: 0.8em; padding: 0 5px; border-radius: 8px; white-space: nowrap;
+  background: var(--vscode-badge-background); color: var(--vscode-badge-foreground);
+}
+button.sel { background: none; padding: 0; color: inherit; }
+button.sel:hover { background: none; color: var(--vscode-focusBorder); }
+
+/* fondo de cuadros para ver la transparencia (sprites, PNG con alfa) */
+.thumb, .checker {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
 .thumb { display: block; max-width: 100%; max-height: 260px; margin: 0 auto; border-radius: 4px; cursor: zoom-in; }
-video.thumb { cursor: default; }
+video.thumb { cursor: default; background: #000; }
+.pixel { image-rendering: pixelated; }
 .missing { opacity: 0.6; font-style: italic; padding: 8px 0; }
-.actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+.actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
+.tools { margin-left: auto; display: flex; gap: 2px; }
+.tools button { padding: 3px 5px; }
+
 button {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
@@ -27,16 +81,13 @@ button {
   border-radius: 3px;
   padding: 3px 8px;
   cursor: pointer;
+  font: inherit;
   font-size: 0.9em;
+  white-space: nowrap;
 }
 button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button:disabled { opacity: 0.6; cursor: default; }
+button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+button.primary:hover { background: var(--vscode-button-hoverBackground); }
 button.wide { width: 100%; padding: 6px; }
-#viewer {
-  position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 10;
-}
-#viewer[hidden] { display: none; }
-#viewer-body img { max-width: 96vw; max-height: 92vh; }
-#close { position: absolute; top: 8px; right: 8px; font-size: 1.2em; }

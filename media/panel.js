@@ -1,20 +1,26 @@
 // Panel lateral: lista de lo que Claude ha leído o generado, lo más nuevo arriba.
 (function () {
   const vscode = acquireVsCodeApi();
-  const list = document.getElementById("list");
-  const status = document.getElementById("status");
-  const viewer = document.getElementById("viewer");
-  const viewerBody = document.getElementById("viewer-body");
+  const $ = (id) => document.getElementById(id);
+  const list = $("list");
+  const status = $("status");
   const seen = new Set();
   const byPath = new Map(); // ruta → tarjeta: si el mismo archivo vuelve a aparecer, sube arriba en vez de duplicarse
+  const selected = new Map(); // ruta → item, para comparar variantes
+  const filter = { kind: "all", text: "", today: false };
 
-  const ICON = { image: "🖼️", svg: "✒️", html: "🌐", video: "🎬" };
+  const ICON = { image: "file-media", svg: "symbol-color", html: "globe", video: "device-camera-video" };
+  const PIXEL_MAX = 256; // imágenes de este tamaño o menos se tratan como pixel art
 
-  function time(ts) {
-    if (!ts) return "";
-    const d = new Date(ts);
-    return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
+  // ¿Este VS Code sabe reproducir el audio de un .mp4 normal (AAC)? Hoy no, pero si algún día sí, no hace falta ffmpeg.
+  const probe = document.createElement("video");
+  const canAac = !!probe.canPlayType('audio/mp4; codecs="mp4a.40.2"');
+  vscode.postMessage({
+    type: "caps",
+    caps: { aac: probe.canPlayType('audio/mp4; codecs="mp4a.40.2"'), opus: probe.canPlayType('video/mp4; codecs="avc1.42E01E, opus"') },
+  });
+
+  // ---------- utilidades ----------
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -23,21 +29,83 @@
     return e;
   }
 
+  function icon(name) {
+    return el("i", "codicon codicon-" + name);
+  }
+
+  /** Botón con icono y, opcionalmente, texto. Sin texto, el título hace de etiqueta. */
+  function button(iconName, label, title, onClick, cls) {
+    const b = el("button", cls || "");
+    if (iconName) b.append(icon(iconName));
+    if (label) b.append(document.createTextNode(" " + label));
+    b.title = title || label || "";
+    if (!label) b.setAttribute("aria-label", b.title);
+    b.onclick = (ev) => {
+      ev.stopPropagation();
+      onClick(ev);
+    };
+    return b;
+  }
+
+  function time(ts) {
+    if (!ts) return "";
+    const d = new Date(ts);
+    return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function isToday(ts) {
+    if (!ts) return false;
+    const d = new Date(ts);
+    return !isNaN(d) && d.toDateString() === new Date().toDateString();
+  }
+
+  const isPicture = (item) => item.kind === "image" || item.kind === "svg";
+
+  /** Pixel art: nítido y ampliado a un múltiplo entero, que es como se ve bien. */
+  function fitPixel(img, maxW, maxH) {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (!w || !h || w > PIXEL_MAX || h > PIXEL_MAX) return false;
+    const scale = Math.max(1, Math.floor(Math.min(maxW / w, maxH / h)));
+    img.classList.add("pixel");
+    img.style.width = w * scale + "px";
+    img.style.height = h * scale + "px";
+    return true;
+  }
+
+  // ---------- tarjetas ----------
+
   function card(item) {
     const c = el("div", "card");
+    c.dataset.kind = item.kind === "svg" ? "image" : item.kind;
+    c.dataset.name = (item.name || "").toLowerCase();
+    c.dataset.ts = item.timestamp || "";
+    if (item.path) {
+      // Menú de clic derecho (lo pinta VS Code; ver "webview/context" en package.json).
+      c.dataset.vscodeContext = JSON.stringify({ cpHasPath: true, path: item.path, preventDefaultContextMenuItems: true });
+    }
+
     const head = el("div", "head");
-    head.append(el("span", "icon", ICON[item.kind] || "📄"));
+    if (isPicture(item) && item.src && item.path) {
+      const sel = button(selected.has(item.path) ? "pass-filled" : "circle-large-outline", "", "Seleccionar para comparar", () => toggleSelect(item, sel), "sel");
+      head.append(sel);
+    } else {
+      head.append(icon(ICON[item.kind] || "file"));
+    }
     const name = el("span", "name", item.name);
     name.title = item.path || "";
     head.append(name);
+    if (item.sub) head.append(el("span", "badge", "subagente"));
+    if (item.versions) head.append(el("span", "badge", "v" + item.versions.length));
     head.append(el("span", "meta", (item.action === "write" ? "escrito" : "leído") + " · " + time(item.timestamp)));
     c.append(head);
 
-    if (item.src && (item.kind === "image" || item.kind === "svg")) {
+    if (item.src && isPicture(item)) {
       const img = el("img", "thumb");
       img.src = item.src;
       img.alt = item.name;
-      img.onclick = () => openViewer(item);
+      img.onload = () => fitPixel(img, list.clientWidth - 16, 260);
+      img.onclick = () => openImage(item);
       c.append(img);
     } else if (item.src && item.kind === "video") {
       const v = el("video", "thumb");
@@ -46,24 +114,29 @@
       v.muted = true;
       v.preload = "metadata";
       c.append(v);
+      c.video = v;
     } else if (item.kind === "html") {
-      const b = el("button", "wide", "Ver HTML renderizado");
-      b.onclick = () => vscode.postMessage({ type: "openHtml", path: item.path });
-      c.append(b);
+      c.append(button("globe", "Ver HTML renderizado", "", () => vscode.postMessage({ type: "openHtml", path: item.path }), "wide"));
     } else if (item.missing) {
       c.append(el("div", "missing", "El archivo ya no está en disco"));
     }
 
     if (item.path) {
       const actions = el("div", "actions");
-      const btn = (label, type) => {
-        const b = el("button", "", label);
-        b.onclick = () => vscode.postMessage({ type, path: item.path });
-        actions.append(b);
-      };
-      btn("Abrir", "open");
-      btn("Copiar ruta", "copyPath");
-      btn("Mostrar", "reveal");
+      const post = (type) => () => vscode.postMessage({ type, path: item.path });
+      actions.append(button("edit", "Cambiar", "Escribe la ruta en el chat de Claude para que le pidas un cambio", post("ask"), "primary"));
+      if (item.versions) actions.append(button("diff", "Antes/después", "Comparar con la versión anterior", () => openCompare(item)));
+      if (item.kind === "video" && item.src) {
+        const snd = button("unmute", "Sonido", "Reproducir con sonido", () => withSound(item, c, snd));
+        actions.append(snd);
+      }
+      const tools = el("span", "tools");
+      tools.append(
+        button("go-to-file", "", "Abrir", post("open")),
+        button("copy", "", "Copiar ruta", post("copyPath")),
+        button("folder-opened", "", "Mostrar en el explorador", post("reveal")),
+      );
+      actions.append(tools);
       c.append(actions);
     }
     return c;
@@ -78,43 +151,175 @@
       old.remove();
     }
     const c = card(item);
-    if (item.path) byPath.set(item.path, c);
+    c.item = item;
+    if (item.path) {
+      byPath.set(item.path, c);
+      if (selected.has(item.path)) selected.set(item.path, item);
+    }
     if (atTop) list.prepend(c);
     else list.append(c);
-    status.textContent = "";
+    applyFilter(c);
+    updateStatus();
   }
 
-  function openViewer(item) {
-    viewerBody.replaceChildren();
-    const img = el("img");
-    img.src = item.src;
-    viewerBody.append(img);
-    viewer.hidden = false;
+  function reset() {
+    list.replaceChildren();
+    seen.clear();
+    byPath.clear();
+    selected.clear();
+    updateSelbar();
   }
-  document.getElementById("close").onclick = () => (viewer.hidden = true);
-  viewer.onclick = (e) => {
-    if (e.target === viewer) viewer.hidden = true;
+
+  // ---------- filtros ----------
+
+  function matches(c) {
+    if (filter.kind !== "all" && c.dataset.kind !== filter.kind) return false;
+    if (filter.text && !c.dataset.name.includes(filter.text)) return false;
+    if (filter.today && !isToday(c.dataset.ts)) return false;
+    return true;
+  }
+
+  function applyFilter(c) {
+    c.hidden = !matches(c);
+  }
+
+  function applyAll() {
+    for (const c of list.children) applyFilter(c);
+    updateStatus();
+  }
+
+  function updateStatus() {
+    if (!list.children.length) return;
+    const visible = [...list.children].filter((c) => !c.hidden).length;
+    status.textContent = visible ? "" : "Nada coincide con el filtro.";
+  }
+
+  for (const b of $("kinds").children) {
+    b.onclick = () => {
+      filter.kind = b.dataset.kind;
+      for (const o of $("kinds").children) o.classList.toggle("on", o === b);
+      applyAll();
+    };
+  }
+  $("search").oninput = (e) => {
+    filter.text = e.target.value.trim().toLowerCase();
+    applyAll();
   };
+  $("today").onclick = () => {
+    filter.today = !filter.today;
+    $("today").classList.toggle("on", filter.today);
+    applyAll();
+  };
+
+  // ---------- selección para comparar variantes ----------
+
+  function toggleSelect(item, btn) {
+    if (selected.has(item.path)) selected.delete(item.path);
+    else selected.set(item.path, item);
+    btn.replaceChildren(icon(selected.has(item.path) ? "pass-filled" : "circle-large-outline"));
+    btn.closest(".card").classList.toggle("selected", selected.has(item.path));
+    updateSelbar();
+  }
+
+  function updateSelbar() {
+    const n = selected.size;
+    $("selbar").hidden = n === 0;
+    $("selcount").textContent = n === 1 ? "1 elegida (marca otra)" : n + " elegidas";
+    $("compare").disabled = n < 2;
+  }
+
+  $("compare").onclick = () => openGrid([...selected.values()]);
+  $("selclear").onclick = () => {
+    selected.clear();
+    for (const c of list.querySelectorAll(".card.selected")) {
+      c.classList.remove("selected");
+      const b = c.querySelector(".sel");
+      if (b) b.replaceChildren(icon("circle-large-outline"));
+    }
+    updateSelbar();
+  };
+
+  // ---------- visor (pestaña aparte, más grande) ----------
+
+  const openImage = (item) => vscode.postMessage({ type: "view", mode: "image", item });
+  const openCompare = (item) => vscode.postMessage({ type: "view", mode: "compare", item });
+  const openGrid = (items) => vscode.postMessage({ type: "view", mode: "grid", items });
+
+  // ---------- vídeo con sonido ----------
+
+  function withSound(item, c, btn) {
+    const v = c.video;
+    if (!v) return;
+    if (canAac || c.soundReady) {
+      v.muted = false;
+      v.play();
+      return;
+    }
+    btn.disabled = true;
+    btn.replaceChildren(icon("loading"), document.createTextNode(" Preparando…"));
+    btn.querySelector(".codicon").classList.add("codicon-modifier-spin");
+    vscode.postMessage({ type: "withSound", id: item.id, path: item.path });
+  }
+
+  function cardById(id) {
+    for (const c of list.children) if (c.item && c.item.id === id) return c;
+    return undefined;
+  }
+
+  function soundButton(c) {
+    return [...c.querySelectorAll("button")].find((b) => b.querySelector(".codicon-unmute, .codicon-loading"));
+  }
+
+  // ---------- mensajes de la extensión ----------
 
   window.addEventListener("message", (ev) => {
     const m = ev.data;
     if (m.type === "reset") {
-      list.replaceChildren();
-      seen.clear();
-      byPath.clear();
+      reset();
       for (const it of m.items.slice().reverse()) add(it, false);
       status.textContent = m.items.length ? "" : "Esperando a que Claude lea o genere algo…";
     } else if (m.type === "add") {
       add(m.item, true);
     } else if (m.type === "clear") {
-      list.replaceChildren();
-      seen.clear();
-      byPath.clear();
+      reset();
       status.textContent = "Panel vaciado.";
     } else if (m.type === "paused") {
-      status.textContent = m.value ? "⏸ En pausa" : "";
+      status.textContent = m.value ? "En pausa" : "";
     } else if (m.type === "status") {
       status.textContent = m.text;
+    } else if (m.type === "videoSrc") {
+      const c = cardById(m.id);
+      if (!c || !c.video) return;
+      c.soundReady = true;
+      const t = c.video.currentTime;
+      c.video.src = m.src;
+      c.video.currentTime = t;
+      c.video.muted = false;
+      c.video.play();
+      const b = soundButton(c);
+      if (b) {
+        b.disabled = false;
+        b.replaceChildren(icon("unmute"), document.createTextNode(" Con sonido"));
+      }
+    } else if (m.type === "debug") {
+      // Solo lo usa la prueba automática para abrir el visor sin hacer clic.
+      const c = byPath.get(m.path);
+      if (m.action === "image" && c) openImage(c.item);
+      if (m.action === "compare" && c && c.item.versions) openCompare(c.item);
+      if (m.action === "select" && c) c.querySelector(".sel").click();
+      if (m.action === "grid") $("compare").click();
+      if (m.action === "sound" && c) soundButton(c).click();
+      if (m.action === "soundForce" && c) vscode.postMessage({ type: "withSound", id: c.item.id, path: c.item.path });
+      if (m.action === "html" && c) c.querySelector("button.wide").click();
+      if (m.action === "kind") [...$("kinds").children].find((b) => b.dataset.kind === m.value).click();
+    } else if (m.type === "soundFailed") {
+      const c = cardById(m.id);
+      const b = c && soundButton(c);
+      if (b) {
+        b.disabled = false;
+        b.replaceChildren(icon("mute"), document.createTextNode(" Sin sonido"));
+        b.title = m.text || "No se pudo preparar el sonido";
+      }
     }
   });
 })();

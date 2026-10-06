@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="48" fill="#24476b"/>
+  <!-- panel lateral con miniaturas -->
+  <rect x="34" y="52" width="44" height="152" rx="8" fill="#3a6188"/>
+  <rect x="42" y="64" width="28" height="22" rx="4" fill="#c9d9e8"/>
+  <rect x="42" y="94" width="28" height="22" rx="4" fill="#7fa1c2"/>
+  <rect x="42" y="124" width="28" height="22" rx="4" fill="#5a80a6"/>
+  <!-- imagen grande -->
+  <rect x="94" y="52" width="128" height="152" rx="10" fill="#ffffff"/>
+  <circle cx="132" cy="96" r="14" fill="#f2b84b"/>
+  <path d="M104 190 L150 130 L178 162 L192 146 L214 190 Z" fill="#1b7f79"/>
+  <!-- destello -->
+  <path d="M206 30 l7 17 17 7 -17 7 -7 17 -7 -17 -17 -7 17 -7 z" fill="#f2b84b"/>
+</svg>

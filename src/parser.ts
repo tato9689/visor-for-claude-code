@@ -15,6 +15,8 @@ export interface MediaEvent {
   timestamp?: string;
   /** Ruta sacada de un comando de terminal: hay que comprobar que el archivo existe y es reciente. */
   guess?: boolean;
+  /** Viene del historial de un subagente, no de la sesión principal. */
+  sub?: boolean;
 }
 
 const EXT: Record<string, MediaKind> = {
@@ -35,9 +37,13 @@ const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 // También rutas de Windows: C:\\carpeta\\foto.png o C:/carpeta/foto.png.
 const PATH_IN_COMMAND = /(?:^|[\s"'=(>])((?:~|\/|[a-zA-Z]:[\\/])[^\s"'<>|;&()]*\.(?:png|jpe?g|gif|webp|avif|svg|html?|mp4|webm|mov))(?=$|[\s"'<>|;&)])/gi;
 
+// Lo mismo entre comillas, que es como van las rutas con espacios ("C:\\Mis juegos\\portada.png").
+const QUOTED_PATH_IN_COMMAND = /(["'])((?:~|\/|[a-zA-Z]:[\\/])[^"'\n]*?\.(?:png|jpe?g|gif|webp|avif|svg|html?|mp4|webm|mov))\1/gi;
+
 /** Rutas multimedia que aparecen en un comando de Bash (las imágenes de Gemini/fal se generan así). */
 export function pathsInCommand(cmd: string): string[] {
   const found = new Set<string>();
+  for (const m of cmd.matchAll(QUOTED_PATH_IN_COMMAND)) found.add(m[2]);
   for (const m of cmd.matchAll(PATH_IN_COMMAND)) found.add(m[1]);
   return [...found];
 }

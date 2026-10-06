@@ -2,7 +2,7 @@
   "name": "preview-for-claude-code",
   "displayName": "Preview for Claude Code",
   "description": "See the images, SVG, HTML and video Claude Code reads or creates, in a side panel. Works over Remote-SSH.",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "publisher": "tato9689",
   "license": "MIT",
   "repository": {
@@ -62,6 +62,32 @@
         "title": "Pause / Resume",
         "category": "Claude Preview",
         "icon": "$(debug-pause)"
+      },
+      {
+        "command": "claudePreview.askChange",
+        "title": "Pedir un cambio a Claude",
+        "category": "Claude Preview",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "claudePreview.openFile",
+        "title": "Abrir archivo",
+        "category": "Claude Preview"
+      },
+      {
+        "command": "claudePreview.copyPath",
+        "title": "Copiar ruta",
+        "category": "Claude Preview"
+      },
+      {
+        "command": "claudePreview._state",
+        "title": "Estado interno (pruebas)",
+        "category": "Claude Preview"
+      },
+      {
+        "command": "claudePreview._ui",
+        "title": "Abrir visor (pruebas)",
+        "category": "Claude Preview"
       }
     ],
     "menus": {
@@ -75,6 +101,45 @@
           "command": "claudePreview.clear",
           "when": "view == claudePreview.panel",
           "group": "navigation"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "claudePreview.askChange",
+          "when": "webviewId == 'claudePreview.panel' && cpHasPath",
+          "group": "1_claude@1"
+        },
+        {
+          "command": "claudePreview.openFile",
+          "when": "webviewId == 'claudePreview.panel' && cpHasPath",
+          "group": "2_file@1"
+        },
+        {
+          "command": "claudePreview.copyPath",
+          "when": "webviewId == 'claudePreview.panel' && cpHasPath",
+          "group": "2_file@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "claudePreview.askChange",
+          "when": "false"
+        },
+        {
+          "command": "claudePreview.openFile",
+          "when": "false"
+        },
+        {
+          "command": "claudePreview.copyPath",
+          "when": "false"
+        },
+        {
+          "command": "claudePreview._state",
+          "when": "false"
+        },
+        {
+          "command": "claudePreview._ui",
+          "when": "false"
         }
       ]
     },
@@ -90,19 +155,26 @@
     }
   },
   "scripts": {
-    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --sourcemap",
+    "build": "npm run assets && esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js --sourcemap",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "package": "npm run typecheck && npm run build && vsce package --no-dependencies",
-    "e2e": "xvfb-run -a -s \"-screen 0 1400x900x24\" node test/e2e/run.js"
+    "e2e": "xvfb-run -a -s \"-screen 0 1400x900x24\" node test/e2e/run.js",
+    "assets": "node -e \"const fs=require('fs');fs.mkdirSync('media/codicons',{recursive:true});for(const f of ['codicon.css','codicon.ttf'])fs.copyFileSync('node_modules/@vscode/codicons/dist/'+f,'media/codicons/'+f)\""
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "@types/vscode": "^1.90.0",
+    "@vscode/codicons": "^0.0.46-24",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
+  },
+  "icon": "media/marketplace-icon.png",
+  "galleryBanner": {
+    "color": "#2b3a67",
+    "theme": "dark"
   }
 }
