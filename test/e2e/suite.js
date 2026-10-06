@@ -22,20 +22,20 @@ exports.run = async function () {
   const dir = path.join(process.env.CLAUDE_CONFIG_DIR, "projects", ws.replace(/[^a-zA-Z0-9]/g, "-"));
   const session = path.join(dir, "sesion.jsonl");
   const subDir = path.join(dir, "sesion", "subagents");
-  const sprite = path.join(ws, "sprite heroe.png"); // con espacio a propósito
-  const foto = path.join(ws, "foto.jpg");
+  const sprite = path.join(ws, "hero sprite.png"); // con espacio a propósito
+  const foto = path.join(ws, "photo.jpg");
   const svg = path.join(ws, "logo.svg");
-  const html = path.join(ws, "web", "pagina.html");
+  const html = path.join(ws, "web", "page.html");
   const video = path.join(ws, "clip.mp4");
   fs.mkdirSync(path.join(ws, "web", "img"), { recursive: true });
 
   // Sprite de 16×16 (pixel art) y una foto grande; generados aquí para no depender de archivos de nadie.
   execSync(`convert -size 16x16 xc:none -fill '#d97757' -draw 'rectangle 4,2 11,13' -fill '#222' -draw 'point 6,5' -draw 'point 9,5' png32:"${sprite}"`);
-  execSync(`convert -size 480x320 gradient:'#335'-'#c96' -fill white -pointsize 40 -gravity center -annotate 0 'FOTO' "${foto}"`);
+  execSync(`convert -size 480x320 gradient:'#335'-'#c96' -fill white -pointsize 40 -gravity center -annotate 0 'PHOTO' "${foto}"`);
   fs.writeFileSync(svg, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><rect width="100" height="60" fill="#d97757"/><text x="50" y="38" font-size="20" text-anchor="middle" fill="#fff">SVG</text></svg>');
-  execSync(`convert -size 120x80 xc:'#2a7' "${path.join(ws, "web", "img", "verde.png")}"`);
-  fs.writeFileSync(path.join(ws, "web", "estilo.css"), "h1{color:#c33;font-family:sans-serif}");
-  fs.writeFileSync(html, '<link rel="stylesheet" href="estilo.css"><h1>Hola desde un HTML</h1><p>Imagen relativa:</p><img src="img/verde.png"><script>document.body.append("JS!")</script>');
+  execSync(`convert -size 120x80 xc:'#2a7' "${path.join(ws, "web", "img", "green.png")}"`);
+  fs.writeFileSync(path.join(ws, "web", "style.css"), "h1{color:#c33;font-family:sans-serif}");
+  fs.writeFileSync(html, '<link rel="stylesheet" href="style.css"><h1>Hello from an HTML page</h1><p>Relative image:</p><img src="img/green.png"><script>document.body.append("JS!")</script>');
 
   const line = (o) => JSON.stringify(o) + "\n";
   const ts = () => new Date().toISOString();
@@ -126,6 +126,9 @@ exports.run = async function () {
 
   // HTML con imagen y CSS relativos.
   await vscode.commands.executeCommand("visor._ui", { action: "html", path: html });
+  await sleep(1500);
+  const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
+  check(tabs.includes(path.basename(html)), `abre el HTML en una pestaña (${tabs.join(", ")})`);
   await shot("html");
 
   const cmds = await vscode.commands.getCommands(true);
