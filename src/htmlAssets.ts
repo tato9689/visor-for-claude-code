@@ -15,6 +15,8 @@ const MIME: Record<string, string> = {
   css: "text/css", js: "text/javascript",
 };
 
+const MEDIA_EXT = Object.keys(MIME).filter((e) => e !== "css" && e !== "js");
+
 /** ¿Es una ruta local relativa (o absoluta del disco), no una URL? */
 function isLocal(ref: string): boolean {
   return !/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(ref) || /^[a-zA-Z]:[\\/]/.test(ref);
@@ -33,11 +35,19 @@ function resolveRef(ref: string, baseDir: string): string | undefined {
   return path.resolve(baseDir, decoded);
 }
 
-function readSmall(file: string): Buffer | undefined {
+/**
+ * Lee el archivo solo si es del tipo esperado (también a donde apunte si es un enlace simbólico).
+ * Así una página no puede meterse dentro, como "CSS", una clave SSH u otro archivo privado
+ * y luego mandarlo fuera con los scripts activados.
+ */
+function readSmall(file: string, allowed: string[]): Buffer | undefined {
   try {
-    const st = fs.statSync(file);
+    const real = fs.realpathSync(file);
+    const ok = (f: string) => allowed.includes(path.extname(f).slice(1).toLowerCase());
+    if (!ok(file) || !ok(real)) return undefined;
+    const st = fs.statSync(real);
     if (!st.isFile() || st.size > MAX_ASSET_BYTES) return undefined;
-    return fs.readFileSync(file);
+    return fs.readFileSync(real);
   } catch {
     return undefined;
   }
@@ -47,7 +57,7 @@ function dataUri(file: string): string | undefined {
   const ext = path.extname(file).slice(1).toLowerCase();
   const mime = MIME[ext];
   if (!mime) return undefined;
-  const buf = readSmall(file);
+  const buf = readSmall(file, MEDIA_EXT);
   return buf ? `data:${mime};base64,${buf.toString("base64")}` : undefined;
 }
 
@@ -73,7 +83,7 @@ export function inlineLocalAssets(html: string, baseDir: string): string {
     if (!/rel\s*=\s*["']?stylesheet/i.test(tag)) return tag;
     const href = attr(tag, "href");
     const file = href && resolveRef(href, baseDir);
-    const buf = file && readSmall(file);
+    const buf = file && readSmall(file, ["css"]);
     if (!file || !buf) return tag;
     const css = inlineCssUrls(buf.toString("utf8"), path.dirname(file));
     return `<style>${css.replace(/<\/style/gi, "<\\/style")}</style>`;
@@ -83,7 +93,7 @@ export function inlineLocalAssets(html: string, baseDir: string): string {
   out = out.replace(/<script\b([^>]*)>\s*<\/script>/gi, (tag, attrs) => {
     const src = attr(` ${attrs}`, "src");
     const file = src && resolveRef(src, baseDir);
-    const buf = file && readSmall(file);
+    const buf = file && readSmall(file, ["js", "mjs"]);
     if (!file || !buf) return tag;
     const rest = attrs.replace(/\ssrc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i, "");
     return `<script${rest}>${buf.toString("utf8").replace(/<\/script/gi, "<\\/script")}</script>`;

@@ -50,3 +50,13 @@ describe("inlineLocalAssets", () => {
     expect(out).toContain('style="background:url(data:image/png');
   });
 });
+
+describe("inlineLocalAssets: archivos privados", () => {
+  it("no mete como CSS/JS/imagen archivos que no lo son, ni enlaces simbólicos disfrazados", () => {
+    fs.writeFileSync(path.join(dir, "id_rsa"), "SECRETO");
+    fs.symlinkSync(path.join(dir, "id_rsa"), path.join(dir, "trampa.css"));
+    fs.symlinkSync(path.join(dir, "id_rsa"), path.join(dir, "trampa.png"));
+    const html = '<link rel="stylesheet" href="id_rsa"><link rel="stylesheet" href="trampa.css"><script src="id_rsa"></script><img src="trampa.png">';
+    expect(inlineLocalAssets(html, dir)).toBe(html);
+  });
+});
