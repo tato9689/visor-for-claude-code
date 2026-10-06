@@ -1,4 +1,4 @@
-# Preview for Claude Code
+# Visor — media previews for Claude Code
 
 > Unofficial. Not affiliated with Anthropic.
 
@@ -28,7 +28,7 @@ The extension runs next to Claude Code (on the remote host when you use Remote-S
 
 ## Install
 
-Until it is on the Marketplace: download the `.vsix` from [Releases](https://github.com/tato9689/preview-for-claude-code/releases), then in VS Code open Extensions → `…` → **Install from VSIX…**.
+Until it is on the Marketplace: download the `.vsix` from [Releases](https://github.com/tato9689/visor-for-claude-code/releases), then in VS Code open Extensions → `…` → **Install from VSIX…**.
 
 ## Status
 

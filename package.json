@@ -1,13 +1,13 @@
 {
-  "name": "preview-for-claude-code",
-  "displayName": "Preview for Claude Code",
-  "description": "See the images, SVG, HTML and video Claude Code reads or creates, in a side panel. Works over Remote-SSH.",
-  "version": "0.1.2",
+  "name": "visor-for-claude-code",
+  "displayName": "Visor — media previews for Claude Code",
+  "description": "See the images, SVG, HTML and video Claude Code reads or creates, live in a side panel. Before/after, variants, crisp pixel art. Works over Remote-SSH.",
+  "version": "0.2.0",
   "publisher": "tato9689",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tato9689/preview-for-claude-code"
+    "url": "https://github.com/tato9689/visor-for-claude-code"
   },
   "engines": {
     "vscode": "^1.90.0"
@@ -21,6 +21,9 @@
     "claude code",
     "preview",
     "images",
+    "image viewer",
+    "before after",
+    "pixel art",
     "remote-ssh",
     "ai"
   ],
@@ -35,118 +38,118 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "claudePreview",
-          "title": "Claude Preview",
+          "id": "visor",
+          "title": "Visor",
           "icon": "media/icon.svg"
         }
       ]
     },
     "views": {
-      "claudePreview": [
+      "visor": [
         {
           "type": "webview",
-          "id": "claudePreview.panel",
+          "id": "visor.panel",
           "name": "Previews"
         }
       ]
     },
     "commands": [
       {
-        "command": "claudePreview.clear",
+        "command": "visor.clear",
         "title": "Clear",
-        "category": "Claude Preview",
+        "category": "Visor",
         "icon": "$(clear-all)"
       },
       {
-        "command": "claudePreview.togglePause",
+        "command": "visor.togglePause",
         "title": "Pause / Resume",
-        "category": "Claude Preview",
+        "category": "Visor",
         "icon": "$(debug-pause)"
       },
       {
-        "command": "claudePreview.askChange",
+        "command": "visor.askChange",
         "title": "Pedir un cambio a Claude",
-        "category": "Claude Preview",
+        "category": "Visor",
         "icon": "$(edit)"
       },
       {
-        "command": "claudePreview.openFile",
+        "command": "visor.openFile",
         "title": "Abrir archivo",
-        "category": "Claude Preview"
+        "category": "Visor"
       },
       {
-        "command": "claudePreview.copyPath",
+        "command": "visor.copyPath",
         "title": "Copiar ruta",
-        "category": "Claude Preview"
+        "category": "Visor"
       },
       {
-        "command": "claudePreview._state",
+        "command": "visor._state",
         "title": "Estado interno (pruebas)",
-        "category": "Claude Preview"
+        "category": "Visor"
       },
       {
-        "command": "claudePreview._ui",
+        "command": "visor._ui",
         "title": "Abrir visor (pruebas)",
-        "category": "Claude Preview"
+        "category": "Visor"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "claudePreview.togglePause",
-          "when": "view == claudePreview.panel",
+          "command": "visor.togglePause",
+          "when": "view == visor.panel",
           "group": "navigation"
         },
         {
-          "command": "claudePreview.clear",
-          "when": "view == claudePreview.panel",
+          "command": "visor.clear",
+          "when": "view == visor.panel",
           "group": "navigation"
         }
       ],
       "webview/context": [
         {
-          "command": "claudePreview.askChange",
-          "when": "webviewId == 'claudePreview.panel' && cpHasPath",
+          "command": "visor.askChange",
+          "when": "webviewId == 'visor.panel' && cpHasPath",
           "group": "1_claude@1"
         },
         {
-          "command": "claudePreview.openFile",
-          "when": "webviewId == 'claudePreview.panel' && cpHasPath",
+          "command": "visor.openFile",
+          "when": "webviewId == 'visor.panel' && cpHasPath",
           "group": "2_file@1"
         },
         {
-          "command": "claudePreview.copyPath",
-          "when": "webviewId == 'claudePreview.panel' && cpHasPath",
+          "command": "visor.copyPath",
+          "when": "webviewId == 'visor.panel' && cpHasPath",
           "group": "2_file@2"
         }
       ],
       "commandPalette": [
         {
-          "command": "claudePreview.askChange",
+          "command": "visor.askChange",
           "when": "false"
         },
         {
-          "command": "claudePreview.openFile",
+          "command": "visor.openFile",
           "when": "false"
         },
         {
-          "command": "claudePreview.copyPath",
+          "command": "visor.copyPath",
           "when": "false"
         },
         {
-          "command": "claudePreview._state",
+          "command": "visor._state",
           "when": "false"
         },
         {
-          "command": "claudePreview._ui",
+          "command": "visor._ui",
           "when": "false"
         }
       ]
     },
     "configuration": {
-      "title": "Preview for Claude Code",
+      "title": "Visor",
       "properties": {
-        "claudePreview.maxItems": {
+        "visor.maxItems": {
           "type": "number",
           "default": 60,
           "description": "How many previews to load from the session history when the panel opens."

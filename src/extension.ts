@@ -20,27 +20,27 @@ export function activate(ctx: vscode.ExtensionContext) {
   const provider = new PreviewProvider(ctx);
   const pathOf = (arg: any): string | undefined => (typeof arg?.path === "string" ? arg.path : undefined);
   ctx.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("claudePreview.panel", provider, {
+    vscode.window.registerWebviewViewProvider("visor.panel", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
-    vscode.commands.registerCommand("claudePreview.clear", () => provider.clear()),
-    vscode.commands.registerCommand("claudePreview.togglePause", () => provider.togglePause()),
+    vscode.commands.registerCommand("visor.clear", () => provider.clear()),
+    vscode.commands.registerCommand("visor.togglePause", () => provider.togglePause()),
     // Menú de clic derecho sobre una tarjeta: VS Code pasa el data-vscode-context de la tarjeta.
-    vscode.commands.registerCommand("claudePreview.askChange", (arg) => {
+    vscode.commands.registerCommand("visor.askChange", (arg) => {
       const p = pathOf(arg);
       if (p) sendToClaude(quotePath(p) + " ");
     }),
-    vscode.commands.registerCommand("claudePreview.copyPath", (arg) => {
+    vscode.commands.registerCommand("visor.copyPath", (arg) => {
       const p = pathOf(arg);
       if (p) copyPath(p);
     }),
-    vscode.commands.registerCommand("claudePreview.openFile", (arg) => {
+    vscode.commands.registerCommand("visor.openFile", (arg) => {
       const p = pathOf(arg);
       if (p) vscode.commands.executeCommand("vscode.open", vscode.Uri.file(p));
     }),
     // Para la prueba automática: qué tiene el panel ahora mismo.
-    vscode.commands.registerCommand("claudePreview._state", () => provider.debugState()),
-    vscode.commands.registerCommand("claudePreview._ui", (msg) => provider.debugUi(msg)),
+    vscode.commands.registerCommand("visor._state", () => provider.debugState()),
+    vscode.commands.registerCommand("visor._ui", (msg) => provider.debugUi(msg)),
     { dispose: () => provider.dispose() },
   );
 }
@@ -130,7 +130,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     for (const f of [file, ...subagentFiles(file)]) events.push(...this.addSource(f, f !== file));
     // Los subagentes corren en paralelo a la sesión principal: se ordena todo por hora.
     events.sort((a, b) => (a.timestamp ?? "").localeCompare(b.timestamp ?? ""));
-    const max = vscode.workspace.getConfiguration("claudePreview").get<number>("maxItems", 60);
+    const max = vscode.workspace.getConfiguration("visor").get<number>("maxItems", 60);
     this.versions.reset();
     this.items = events.slice(-max);
     this.post({ type: "reset", items: this.items.map((e) => this.toView(e)), session: path.basename(file, ".jsonl") });
@@ -305,7 +305,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
       this.viewer.webview.postMessage(msg);
       return;
     }
-    const panel = vscode.window.createWebviewPanel("claudePreview.viewer", title, vscode.ViewColumn.Active, {
+    const panel = vscode.window.createWebviewPanel("visor.viewer", title, vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [...diskRoots(), this.ctx.extensionUri, this.ctx.globalStorageUri],
@@ -400,7 +400,7 @@ function run(cmd: string, args: string[]): Promise<void> {
  * Las imágenes, CSS y scripts locales se embeben: el iframe no puede pedir archivos del disco.
  */
 function openHtmlPanel(file: string) {
-  const panel = vscode.window.createWebviewPanel("claudePreview.html", path.basename(file), vscode.ViewColumn.Beside, {
+  const panel = vscode.window.createWebviewPanel("visor.html", path.basename(file), vscode.ViewColumn.Beside, {
     enableScripts: true, // solo para la barra; el iframe tiene su propio sandbox
   });
   let scripts = false;

@@ -53,13 +53,13 @@ exports.run = async function () {
   const pty = { onDidWrite: new vscode.EventEmitter().event, open() {}, close() {}, handleInput: (d) => (typed += d) };
   vscode.window.createTerminal({ name: "claude", pty });
 
-  const ext = vscode.extensions.all.find((e) => e.packageJSON.name === "preview-for-claude-code");
+  const ext = vscode.extensions.all.find((e) => e.packageJSON.name === "visor-for-claude-code");
   if (!ext) throw new Error("extensión no encontrada");
   await ext.activate();
   await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
-  await vscode.commands.executeCommand("workbench.view.extension.claudePreview");
+  await vscode.commands.executeCommand("workbench.view.extension.visor");
   await sleep(2500);
-  const state = () => vscode.commands.executeCommand("claudePreview._state");
+  const state = () => vscode.commands.executeCommand("visor._state");
   check((await state()).items.length === 2, "carga el histórico (2 elementos)");
 
   // En vivo: Claude rehace el sprite desde la terminal → segunda versión.
@@ -84,36 +84,36 @@ exports.run = async function () {
   await shot("panel");
 
   // Pixel art ampliado.
-  await vscode.commands.executeCommand("claudePreview._ui", { action: "image", path: sprite });
+  await vscode.commands.executeCommand("visor._ui", { action: "image", path: sprite });
   await shot("sprite-ampliado");
   // Antes / después.
-  await vscode.commands.executeCommand("claudePreview._ui", { action: "compare", path: sprite });
+  await vscode.commands.executeCommand("visor._ui", { action: "compare", path: sprite });
   await shot("antes-despues");
   await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
   // Variantes en cuadrícula.
-  for (const p of [sprite, foto, svg]) await vscode.commands.executeCommand("claudePreview._ui", { action: "select", path: p });
+  for (const p of [sprite, foto, svg]) await vscode.commands.executeCommand("visor._ui", { action: "select", path: p });
   await shot("seleccion");
-  await vscode.commands.executeCommand("claudePreview._ui", { action: "grid" });
+  await vscode.commands.executeCommand("visor._ui", { action: "grid" });
   await shot("cuadricula");
   await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
   // Filtro.
-  await vscode.commands.executeCommand("claudePreview._ui", { action: "kind", value: "video" });
+  await vscode.commands.executeCommand("visor._ui", { action: "kind", value: "video" });
   await shot("filtro-video");
-  await vscode.commands.executeCommand("claudePreview._ui", { action: "kind", value: "all" });
+  await vscode.commands.executeCommand("visor._ui", { action: "kind", value: "all" });
 
   // «Cambiar»: escribe la ruta en la terminal de Claude, sin Enter.
-  await vscode.commands.executeCommand("claudePreview.askChange", { path: sprite });
+  await vscode.commands.executeCommand("visor.askChange", { path: sprite });
   await sleep(500);
   check(typed === `"${sprite}" `, `escribe la ruta entre comillas en la terminal de Claude: ${JSON.stringify(typed)}`);
 
   // Una ruta con salto de línea no se escribe nunca (sería como pulsar Enter).
   typed = "";
-  await vscode.commands.executeCommand("claudePreview.askChange", { path: "/tmp/x.png\nrm -rf ~" });
+  await vscode.commands.executeCommand("visor.askChange", { path: "/tmp/x.png\nrm -rf ~" });
   await sleep(300);
   check(typed === "", "no escribe rutas con saltos de línea");
 
   // Sonido: si VS Code no sabe AAC (versiones viejas), pasa el audio a Opus con ffmpeg.
-  await vscode.commands.executeCommand("claudePreview._ui", { action: "soundForce", path: video });
+  await vscode.commands.executeCommand("visor._ui", { action: "soundForce", path: video });
   for (let i = 0; i < 20 && !(await state()).lastSound; i++) await sleep(500);
   const out = (await state()).lastSound;
   check(out && fs.existsSync(out), "prepara el vídeo con sonido");
@@ -121,10 +121,10 @@ exports.run = async function () {
   check(codecs.includes("h264") && codecs.includes("opus"), `vídeo intacto + audio Opus (${codecs.join(", ")})`);
 
   // HTML con imagen y CSS relativos.
-  await vscode.commands.executeCommand("claudePreview._ui", { action: "html", path: html });
+  await vscode.commands.executeCommand("visor._ui", { action: "html", path: html });
   await shot("html");
 
   const cmds = await vscode.commands.getCommands(true);
-  for (const c of ["claudePreview.clear", "claudePreview.togglePause", "claudePreview.askChange"]) check(cmds.includes(c), "comando " + c);
+  for (const c of ["visor.clear", "visor.togglePause", "visor.askChange"]) check(cmds.includes(c), "comando " + c);
   console.log("E2E OK");
 };
