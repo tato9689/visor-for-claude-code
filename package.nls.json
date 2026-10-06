@@ -1,0 +1,11 @@
+{
+  "command.clear.title": "Clear",
+  "command.togglePause.title": "Pause / Resume",
+  "command.askChange.title": "Ask Claude for a change",
+  "command.openFile.title": "Open file",
+  "command.copyPath.title": "Copy path",
+  "command._state.title": "Internal state (tests)",
+  "command._ui.title": "Open viewer (tests)",
+  "view.panel.name": "Previews",
+  "config.maxItems": "How many previews to load from the session history when the panel opens."
+}

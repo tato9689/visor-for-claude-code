@@ -17,6 +17,7 @@ Today the official extension shows `[Image]` in the chat: Claude sees the pictur
 - **Pixel art mode.** Small images (sprites, icons) are scaled up crisp, at whole-number zoom, over a transparency checkerboard.
 - **Filters**: images / video / HTML, search by name, only today.
 - **HTML preview** in a sandboxed tab with scripts **off** by default. Local images, CSS and scripts next to the HTML file are loaded too.
+- **Speaks your VS Code language.** English by default, Spanish included; more languages are just a JSON file in `l10n/`.
 - **Video with sound.** Recent VS Code plays it directly. On older versions, the extension converts the audio with `ffmpeg` if you have it.
 
 ## How it works

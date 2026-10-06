@@ -61,6 +61,10 @@ exports.run = async function () {
   await sleep(2500);
   const state = () => vscode.commands.executeCommand("visor._state");
   check((await state()).items.length === 2, "carga el histórico (2 elementos)");
+  {
+    const { language, sample } = await state();
+    check(sample === (language.startsWith("es") ? "Hoy" : "Today"), `textos en el idioma de VS Code (${language} → ${sample})`);
+  }
 
   // En vivo: Claude rehace el sprite desde la terminal → segunda versión.
   execSync(`convert -size 16x16 xc:none -fill '#5a8dee' -draw 'rectangle 3,1 12,14' -fill '#fff' -draw 'point 6,5' -draw 'point 9,5' png32:"${sprite}"`);

@@ -10,6 +10,8 @@ import { findActiveSession, subagentFiles } from "./sessions";
 import { VersionStore } from "./versions";
 import { inlineLocalAssets } from "./htmlAssets";
 
+const t = vscode.l10n.t;
+
 const POLL_MS = 700;           // cada cuánto mira si el historial ha crecido
 const SESSION_CHECK_MS = 4000; // cada cuánto mira si hay una sesión (o un subagente) más nuevo
 const MAX_INLINE_BYTES = 15 * 1024 * 1024;
@@ -106,6 +108,8 @@ class PreviewProvider implements vscode.WebviewViewProvider {
       items: this.items.map((e) => ({ kind: e.kind, path: e.path, sub: !!e.sub })),
       caps: this.caps,
       lastSound: this.lastSound,
+      language: vscode.env.language,
+      sample: t("Today"),
     };
   }
 
@@ -123,7 +127,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     this.sources.clear();
     this.mainFile = file;
     if (!file) {
-      this.post({ type: "status", text: "No hay sesiones de Claude Code todavía." });
+      this.post({ type: "status", text: t("No Claude Code sessions yet.") });
       return;
     }
     const events: MediaEvent[] = [];
@@ -165,7 +169,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
       try {
         this.emit(this.read(src));
       } catch (err) {
-        this.post({ type: "status", text: `No puedo leer ${path.basename(file)}: ${(err as Error).message}` });
+        this.post({ type: "status", text: t("Can't read {0}: {1}", path.basename(file), (err as Error).message) });
       }
     }
   }
@@ -203,7 +207,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
       id: e.id,
       kind: e.kind,
       path: e.path,
-      name: e.path ? path.basename(e.path) : "(imagen sin archivo)",
+      name: e.path ? path.basename(e.path) : t("(image without file)"),
       action: e.action,
       tool: e.tool,
       timestamp: e.timestamp,
@@ -233,7 +237,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
         if (p) sendToClaude(quotePath(p) + " ");
         break;
       case "pick":
-        if (p) sendToClaude(`Me quedo con esta: ${quotePath(p)}`);
+        if (p) sendToClaude(t("I'll keep this one: {0}", quotePath(p)));
         break;
       case "withSound":
         if (p && typeof m.id === "string") this.withSound(m.id, p);
@@ -256,7 +260,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     try {
       st = fs.statSync(file);
     } catch {
-      return this.post({ type: "soundFailed", id, text: "El vídeo ya no está en disco." });
+      return this.post({ type: "soundFailed", id, text: t("The video is no longer on disk.") });
     }
     const key = crypto.createHash("sha1").update(`${file}|${st.size}|${st.mtimeMs}`).digest("hex");
     const dir = vscode.Uri.joinPath(this.ctx.globalStorageUri, "audio").fsPath;
@@ -272,7 +276,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
         try { fs.unlinkSync(tmp); } catch { /* no llegó a crearse */ }
         this.post({ type: "soundFailed", id });
         if (err?.code === "ENOENT") return this.noFfmpeg(file);
-        return vscode.window.showErrorMessage(`No he podido preparar el sonido: ${String(err?.message ?? err).slice(0, 300)}`);
+        return vscode.window.showErrorMessage(t("Couldn't prepare the sound: {0}", String(err?.message ?? err).slice(0, 300)));
       }
     }
     this.lastSound = out;
@@ -282,12 +286,12 @@ class PreviewProvider implements vscode.WebviewViewProvider {
 
   private async noFfmpeg(file: string) {
     const how =
-      process.platform === "win32" ? "abre una terminal, escribe  winget install Gyan.FFmpeg  y reinicia VS Code" :
-      process.platform === "darwin" ? "escribe  brew install ffmpeg  en una terminal" :
-      "instálalo con el gestor de paquetes (p. ej.  sudo apt install ffmpeg)";
-    const outside = vscode.env.remoteName ? undefined : "Abrir con el reproductor del sistema";
+      process.platform === "win32" ? t("open a terminal, run  winget install Gyan.FFmpeg  and restart VS Code") :
+      process.platform === "darwin" ? t("run  brew install ffmpeg  in a terminal") :
+      t("install it with your package manager (e.g.  sudo apt install ffmpeg)");
+    const outside = vscode.env.remoteName ? undefined : t("Open with the system player");
     const pick = await vscode.window.showWarningMessage(
-      `Para oír el sonido dentro de VS Code hace falta ffmpeg: ${how}.`,
+      t("To hear the sound inside VS Code you need ffmpeg: {0}.", how),
       ...(outside ? [outside] : []),
     );
     if (pick === outside) vscode.env.openExternal(vscode.Uri.file(file));
@@ -297,7 +301,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
 
   /** Visor grande en una pestaña del editor; se reutiliza la misma pestaña. */
   private showInViewer(m: any) {
-    const title = m.mode === "grid" ? "Comparar variantes" : m.mode === "compare" ? `Antes / después · ${m.item?.name ?? ""}` : m.item?.name ?? "Visor";
+    const title = m.mode === "grid" ? t("Compare variants") : m.mode === "compare" ? t("Before / after · {0}", m.item?.name ?? "") : m.item?.name ?? "Visor";
     const msg = { type: m.mode, item: m.item, items: m.items };
     if (this.viewer) {
       this.viewer.title = title;
@@ -315,15 +319,15 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     const media = (...f: string[]) => panel.webview.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, "media", ...f));
     const nonce = makeNonce();
     const csp = panel.webview.cspSource;
-    panel.webview.html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+    panel.webview.html = `<!doctype html><html lang="${vscode.env.language}"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${csp} data:; font-src ${csp}; style-src ${csp}; script-src 'nonce-${nonce}';">
 <link rel="stylesheet" href="${media("codicons", "codicon.css")}">
 <link rel="stylesheet" href="${media("viewer.css")}"></head>
-<body><div id="viewer-bar"></div><div id="viewer-body"></div>
+<body data-i18n="${escapeHtml(JSON.stringify(viewerStrings()))}"><div id="viewer-bar"></div><div id="viewer-body"></div>
 <script nonce="${nonce}" src="${media("viewer.js")}"></script></body></html>`;
     panel.webview.onDidReceiveMessage((r) => {
       if (r?.type === "viewerReady") panel.webview.postMessage(msg);
-      else if (r?.type === "pick" && typeof r.path === "string") sendToClaude(`Me quedo con esta: ${quotePath(r.path)}`);
+      else if (r?.type === "pick" && typeof r.path === "string") sendToClaude(t("I'll keep this one: {0}", quotePath(r.path)));
     });
     panel.onDidDispose(() => (this.viewer = undefined));
   }
@@ -336,20 +340,20 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     const media = (...f: string[]) => webview.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, "media", ...f));
     const nonce = makeNonce();
     const src = webview.cspSource;
-    return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+    return `<!doctype html><html lang="${vscode.env.language}"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${src} data:; media-src ${src}; font-src ${src}; style-src ${src}; script-src 'nonce-${nonce}';">
 <link rel="stylesheet" href="${media("codicons", "codicon.css")}">
 <link rel="stylesheet" href="${media("panel.css")}"></head>
-<body>
+<body data-i18n="${escapeHtml(JSON.stringify(panelStrings()))}">
 <div id="toolbar">
-  <div id="kinds" role="group" aria-label="Tipo">
-    <button data-kind="all" class="on">Todo</button><button data-kind="image">Imágenes</button><button data-kind="video">Vídeo</button><button data-kind="html">HTML</button>
+  <div id="kinds" role="group" aria-label="${escapeHtml(t("Type"))}">
+    <button data-kind="all" class="on">${escapeHtml(t("All"))}</button><button data-kind="image">${escapeHtml(t("Images"))}</button><button data-kind="video">${escapeHtml(t("Video"))}</button><button data-kind="html">HTML</button>
   </div>
   <div class="row">
-    <input id="search" type="search" placeholder="Buscar por nombre">
-    <button id="today" title="Solo lo de hoy"><i class="codicon codicon-calendar"></i> Hoy</button>
+    <input id="search" type="search" placeholder="${escapeHtml(t("Search by name"))}">
+    <button id="today" title="${escapeHtml(t("Only today's"))}"><i class="codicon codicon-calendar"></i> ${escapeHtml(t("Today"))}</button>
   </div>
-  <div id="selbar" hidden><span id="selcount"></span><button id="compare" class="primary"><i class="codicon codicon-layout"></i> Comparar</button><button id="selclear" title="Quitar selección"><i class="codicon codicon-close"></i></button></div>
+  <div id="selbar" hidden><span id="selcount"></span><button id="compare" class="primary"><i class="codicon codicon-layout"></i> ${escapeHtml(t("Compare"))}</button><button id="selclear" title="${escapeHtml(t("Clear selection"))}"><i class="codicon codicon-close"></i></button></div>
 </div>
 <div id="status"></div><div id="list"></div>
 <script nonce="${nonce}" src="${media("panel.js")}"></script></body></html>`;
@@ -361,14 +365,14 @@ function sendToClaude(text: string) {
   // Un salto de línea (u otro carácter de control) en un nombre de archivo equivaldría a pulsar Enter:
   // en una terminal normal podría ejecutar un comando. Esas rutas no se escriben nunca.
   if (/[\x00-\x1f\x7f]/.test(text)) {
-    vscode.window.showWarningMessage("La ruta de este archivo tiene caracteres raros (saltos de línea o de control). Por seguridad no la escribo en la terminal.");
+    vscode.window.showWarningMessage(t("This file's path has odd characters (line breaks or control characters). For safety, I won't type it into the terminal."));
     return;
   }
   const terms = vscode.window.terminals;
   const term = terms.find((t) => /claude/i.test(t.name)) ?? vscode.window.activeTerminal ?? (terms.length === 1 ? terms[0] : undefined);
   if (!term) {
     vscode.env.clipboard.writeText(text);
-    vscode.window.showInformationMessage("No encuentro la terminal de Claude. He copiado el texto: pégalo en el chat de Claude.");
+    vscode.window.showInformationMessage(t("Couldn't find Claude's terminal. The text is copied: paste it into the Claude chat."));
     return;
   }
   term.show(false);
@@ -381,7 +385,7 @@ function quotePath(p: string): string {
 
 function copyPath(p: string) {
   vscode.env.clipboard.writeText(p);
-  vscode.window.setStatusBarMessage("Ruta copiada", 2000);
+  vscode.window.setStatusBarMessage(t("Path copied"), 2000);
 }
 
 function run(cmd: string, args: string[]): Promise<void> {
@@ -409,19 +413,19 @@ function openHtmlPanel(file: string) {
     try {
       content = inlineLocalAssets(fs.readFileSync(file, "utf8"), path.dirname(file));
     } catch (err) {
-      panel.webview.html = `<p>No puedo abrir ${escapeHtml(file)}: ${escapeHtml((err as Error).message)}</p>`;
+      panel.webview.html = `<p>${escapeHtml(t("Can't open {0}: {1}", file, (err as Error).message))}</p>`;
       return;
     }
     // El iframe srcdoc hereda esta CSP: con scripts activados hay que abrirla.
     const nonce = makeNonce();
     const srcdoc = content.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-    panel.webview.html = `<!doctype html><html><head><meta charset="utf-8">
+    panel.webview.html = `<!doctype html><html lang="${vscode.env.language}"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src 'self' about:; img-src https: data:; media-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:; script-src ${scripts ? "'unsafe-inline' https:" : `'nonce-${nonce}'`};">
 <style>html,body{margin:0;height:100%;display:flex;flex-direction:column;font:13px system-ui}
 .bar{padding:6px 10px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #8884}
 .bar span{flex:1}iframe{flex:1;border:0;background:#fff}</style></head><body>
-<div class="bar"><span>${scripts ? "Scripts activados" : "Modo seguro: sin scripts"}</span>
-<button id="r">Recargar</button><button id="t">${scripts ? "Desactivar scripts" : "Activar scripts"}</button></div>
+<div class="bar"><span>${escapeHtml(scripts ? t("Scripts enabled") : t("Safe mode: no scripts"))}</span>
+<button id="r">${escapeHtml(t("Reload"))}</button><button id="t">${escapeHtml(scripts ? t("Disable scripts") : t("Enable scripts"))}</button></div>
 <iframe sandbox="${scripts ? "allow-scripts" : ""}" srcdoc="${srcdoc}"></iframe>
 <script nonce="${nonce}">const v=acquireVsCodeApi();document.getElementById('t').onclick=()=>v.postMessage('toggle');document.getElementById('r').onclick=()=>v.postMessage('reload');</script>
 </body></html>`;
@@ -483,4 +487,57 @@ function readSmall(file: string): Buffer | undefined {
 
 function makeNonce(): string {
   return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join("");
+}
+
+/** Textos del panel lateral: el webview no puede llamar a l10n, así que se los pasa la extensión. */
+function panelStrings(): Record<string, string> {
+  return {
+    selectToCompare: t("Select to compare"),
+    subagent: t("subagent"),
+    written: t("written"),
+    read: t("read"),
+    viewHtml: t("View rendered HTML"),
+    fileGone: t("The file is no longer on disk"),
+    change: t("Change"),
+    changeTip: t("Types the path into Claude's chat so you can ask for a change"),
+    beforeAfter: t("Before/after"),
+    beforeAfterTip: t("Compare with the previous version"),
+    sound: t("Sound"),
+    soundTip: t("Play with sound"),
+    open: t("Open"),
+    copyPath: t("Copy path"),
+    reveal: t("Reveal in Explorer"),
+    noMatch: t("Nothing matches the filter."),
+    oneSelected: t("1 selected (pick another)"),
+    nSelected: t("{0} selected", "{0}"),
+    preparing: t("Preparing…"),
+    waiting: t("Waiting for Claude to read or generate something…"),
+    cleared: t("Panel cleared."),
+    paused: t("Paused"),
+    withSound: t("With sound"),
+    noSound: t("No sound"),
+    soundFailed: t("Couldn't prepare the sound"),
+  };
+}
+
+/** Textos del visor grande (pestaña del editor). */
+function viewerStrings(): Record<string, string> {
+  return {
+    zoomOut: t("Zoom out"),
+    zoomIn: t("Zoom in"),
+    fit: t("Fit"),
+    fitTip: t("Fit to screen"),
+    crisp: t("Crisp pixels"),
+    crispTip: t("View pixel art without smoothing"),
+    versionTip: t("Version to compare with"),
+    sideBySide: t("Side by side"),
+    slide: t("Slide"),
+    modeTip: t("Switch between slider and side by side"),
+    before: t("before"),
+    now: t("now"),
+    dragTip: t("Drag to compare"),
+    pick: t("Keep this one"),
+    pickTip: t("Types it for Claude (you press Enter)"),
+    variants: t("{0} variants · click one to enlarge", "{0}"),
+  };
 }

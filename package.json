@@ -2,7 +2,7 @@
   "name": "visor-for-claude-code",
   "displayName": "Visor — media previews for Claude Code",
   "description": "See the images, SVG, HTML and video Claude Code reads or creates, live in a side panel. Before/after, variants, crisp pixel art. Works over Remote-SSH.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "tato9689",
   "license": "MIT",
   "repository": {
@@ -49,47 +49,47 @@
         {
           "type": "webview",
           "id": "visor.panel",
-          "name": "Previews"
+          "name": "%view.panel.name%"
         }
       ]
     },
     "commands": [
       {
         "command": "visor.clear",
-        "title": "Clear",
+        "title": "%command.clear.title%",
         "category": "Visor",
         "icon": "$(clear-all)"
       },
       {
         "command": "visor.togglePause",
-        "title": "Pause / Resume",
+        "title": "%command.togglePause.title%",
         "category": "Visor",
         "icon": "$(debug-pause)"
       },
       {
         "command": "visor.askChange",
-        "title": "Pedir un cambio a Claude",
+        "title": "%command.askChange.title%",
         "category": "Visor",
         "icon": "$(edit)"
       },
       {
         "command": "visor.openFile",
-        "title": "Abrir archivo",
+        "title": "%command.openFile.title%",
         "category": "Visor"
       },
       {
         "command": "visor.copyPath",
-        "title": "Copiar ruta",
+        "title": "%command.copyPath.title%",
         "category": "Visor"
       },
       {
         "command": "visor._state",
-        "title": "Estado interno (pruebas)",
+        "title": "%command._state.title%",
         "category": "Visor"
       },
       {
         "command": "visor._ui",
-        "title": "Abrir visor (pruebas)",
+        "title": "%command._ui.title%",
         "category": "Visor"
       }
     ],
@@ -152,7 +152,7 @@
         "visor.maxItems": {
           "type": "number",
           "default": 60,
-          "description": "How many previews to load from the session history when the panel opens."
+          "description": "%config.maxItems%"
         }
       }
     }
@@ -179,5 +179,6 @@
   "galleryBanner": {
     "color": "#2b3a67",
     "theme": "dark"
-  }
+  },
+  "l10n": "./l10n"
 }

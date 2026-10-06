@@ -2,6 +2,7 @@
 (function () {
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
+  const T = JSON.parse(document.body.dataset.i18n); // textos ya traducidos por la extensión
   const list = $("list");
   const status = $("status");
   const seen = new Set();
@@ -87,7 +88,7 @@
 
     const head = el("div", "head");
     if (isPicture(item) && item.src && item.path) {
-      const sel = button(selected.has(item.path) ? "pass-filled" : "circle-large-outline", "", "Seleccionar para comparar", () => toggleSelect(item, sel), "sel");
+      const sel = button(selected.has(item.path) ? "pass-filled" : "circle-large-outline", "", T.selectToCompare, () => toggleSelect(item, sel), "sel");
       head.append(sel);
     } else {
       head.append(icon(ICON[item.kind] || "file"));
@@ -95,9 +96,9 @@
     const name = el("span", "name", item.name);
     name.title = item.path || "";
     head.append(name);
-    if (item.sub) head.append(el("span", "badge", "subagente"));
+    if (item.sub) head.append(el("span", "badge", T.subagent));
     if (item.versions) head.append(el("span", "badge", "v" + item.versions.length));
-    head.append(el("span", "meta", (item.action === "write" ? "escrito" : "leído") + " · " + time(item.timestamp)));
+    head.append(el("span", "meta", (item.action === "write" ? T.written : T.read) + " · " + time(item.timestamp)));
     c.append(head);
 
     if (item.src && isPicture(item)) {
@@ -116,25 +117,25 @@
       c.append(v);
       c.video = v;
     } else if (item.kind === "html") {
-      c.append(button("globe", "Ver HTML renderizado", "", () => vscode.postMessage({ type: "openHtml", path: item.path }), "wide"));
+      c.append(button("globe", T.viewHtml, "", () => vscode.postMessage({ type: "openHtml", path: item.path }), "wide"));
     } else if (item.missing) {
-      c.append(el("div", "missing", "El archivo ya no está en disco"));
+      c.append(el("div", "missing", T.fileGone));
     }
 
     if (item.path) {
       const actions = el("div", "actions");
       const post = (type) => () => vscode.postMessage({ type, path: item.path });
-      actions.append(button("edit", "Cambiar", "Escribe la ruta en el chat de Claude para que le pidas un cambio", post("ask"), "primary"));
-      if (item.versions) actions.append(button("diff", "Antes/después", "Comparar con la versión anterior", () => openCompare(item)));
+      actions.append(button("edit", T.change, T.changeTip, post("ask"), "primary"));
+      if (item.versions) actions.append(button("diff", T.beforeAfter, T.beforeAfterTip, () => openCompare(item)));
       if (item.kind === "video" && item.src) {
-        const snd = button("unmute", "Sonido", "Reproducir con sonido", () => withSound(item, c, snd));
+        const snd = button("unmute", T.sound, T.soundTip, () => withSound(item, c, snd));
         actions.append(snd);
       }
       const tools = el("span", "tools");
       tools.append(
-        button("go-to-file", "", "Abrir", post("open")),
-        button("copy", "", "Copiar ruta", post("copyPath")),
-        button("folder-opened", "", "Mostrar en el explorador", post("reveal")),
+        button("go-to-file", "", T.open, post("open")),
+        button("copy", "", T.copyPath, post("copyPath")),
+        button("folder-opened", "", T.reveal, post("reveal")),
       );
       actions.append(tools);
       c.append(actions);
@@ -191,7 +192,7 @@
   function updateStatus() {
     if (!list.children.length) return;
     const visible = [...list.children].filter((c) => !c.hidden).length;
-    status.textContent = visible ? "" : "Nada coincide con el filtro.";
+    status.textContent = visible ? "" : T.noMatch;
   }
 
   for (const b of $("kinds").children) {
@@ -224,7 +225,7 @@
   function updateSelbar() {
     const n = selected.size;
     $("selbar").hidden = n === 0;
-    $("selcount").textContent = n === 1 ? "1 elegida (marca otra)" : n + " elegidas";
+    $("selcount").textContent = n === 1 ? T.oneSelected : T.nSelected.replace("{0}", n);
     $("compare").disabled = n < 2;
   }
 
@@ -256,7 +257,7 @@
       return;
     }
     btn.disabled = true;
-    btn.replaceChildren(icon("loading"), document.createTextNode(" Preparando…"));
+    btn.replaceChildren(icon("loading"), document.createTextNode(" " + T.preparing));
     btn.querySelector(".codicon").classList.add("codicon-modifier-spin");
     vscode.postMessage({ type: "withSound", id: item.id, path: item.path });
   }
@@ -277,14 +278,14 @@
     if (m.type === "reset") {
       reset();
       for (const it of m.items.slice().reverse()) add(it, false);
-      status.textContent = m.items.length ? "" : "Esperando a que Claude lea o genere algo…";
+      status.textContent = m.items.length ? "" : T.waiting;
     } else if (m.type === "add") {
       add(m.item, true);
     } else if (m.type === "clear") {
       reset();
-      status.textContent = "Panel vaciado.";
+      status.textContent = T.cleared;
     } else if (m.type === "paused") {
-      status.textContent = m.value ? "En pausa" : "";
+      status.textContent = m.value ? T.paused : "";
     } else if (m.type === "status") {
       status.textContent = m.text;
     } else if (m.type === "videoSrc") {
@@ -299,7 +300,7 @@
       const b = soundButton(c);
       if (b) {
         b.disabled = false;
-        b.replaceChildren(icon("unmute"), document.createTextNode(" Con sonido"));
+        b.replaceChildren(icon("unmute"), document.createTextNode(" " + T.withSound));
       }
     } else if (m.type === "debug") {
       // Solo lo usa la prueba automática para abrir el visor sin hacer clic.
@@ -317,8 +318,8 @@
       const b = c && soundButton(c);
       if (b) {
         b.disabled = false;
-        b.replaceChildren(icon("mute"), document.createTextNode(" Sin sonido"));
-        b.title = m.text || "No se pudo preparar el sonido";
+        b.replaceChildren(icon("mute"), document.createTextNode(" " + T.noSound));
+        b.title = m.text || T.soundFailed;
       }
     }
   });

@@ -1,0 +1,11 @@
+{
+  "command.clear.title": "Vaciar",
+  "command.togglePause.title": "Pausar / Reanudar",
+  "command.askChange.title": "Pedir un cambio a Claude",
+  "command.openFile.title": "Abrir archivo",
+  "command.copyPath.title": "Copiar ruta",
+  "command._state.title": "Estado interno (pruebas)",
+  "command._ui.title": "Abrir visor (pruebas)",
+  "view.panel.name": "Previsualizaciones",
+  "config.maxItems": "Cuántas previsualizaciones cargar del historial de la sesión al abrir el panel."
+}

@@ -1,6 +1,7 @@
 // Visor grande (pestaña del editor): imagen con zoom, antes/después y variantes en cuadrícula.
 (function () {
   const vscode = acquireVsCodeApi();
+  const T = JSON.parse(document.body.dataset.i18n); // textos ya traducidos por la extensión
   const viewerBar = document.getElementById("viewer-bar");
   const viewerBody = document.getElementById("viewer-body");
   const PIXEL_MAX = 256; // imágenes de este tamaño o menos se tratan como pixel art
@@ -73,7 +74,7 @@
       scale = Math.max(0.1, Math.min(64, pixel ? Math.max(1, Math.round(cur * f)) : cur * f));
       apply();
     };
-    const pixBtn = button("primitive-square", "Píxeles nítidos", "Ver el pixel art sin suavizar", () => {
+    const pixBtn = button("primitive-square", T.crisp, T.crispTip, () => {
       pixel = !pixel;
       apply();
     });
@@ -84,9 +85,9 @@
     redraw = apply;
     showViewer(
       [
-        button("zoom-out", "", "Alejar", zoom(0.5)),
-        button("zoom-in", "", "Acercar", zoom(2)),
-        button("screen-full", "Ajustar", "Ajustar a la pantalla", () => {
+        button("zoom-out", "", T.zoomOut, zoom(0.5)),
+        button("zoom-in", "", T.zoomIn, zoom(2)),
+        button("screen-full", T.fit, T.fitTip, () => {
           scale = 0;
           apply();
         }),
@@ -111,15 +112,15 @@
       select.append(o);
     });
     select.value = String(before);
-    select.title = "Versión con la que comparar";
+    select.title = T.versionTip;
     select.onchange = () => {
       before = Number(select.value);
       render();
     };
 
-    const modeBtn = button("split-horizontal", "Lado a lado", "Cambiar entre barra deslizante y lado a lado", () => {
+    const modeBtn = button("split-horizontal", T.sideBySide, T.modeTip, () => {
       mode = mode === "slider" ? "side" : "slider";
-      modeBtn.replaceChildren(icon(mode === "slider" ? "split-horizontal" : "diff"), document.createTextNode(mode === "slider" ? " Lado a lado" : " Deslizar"));
+      modeBtn.replaceChildren(icon(mode === "slider" ? "split-horizontal" : "diff"), document.createTextNode(" " + (mode === "slider" ? T.sideBySide : T.slide)));
       render();
     });
 
@@ -133,8 +134,8 @@
       const imgB = el("img", "checker");
       imgA.src = a.src;
       imgB.src = b.src;
-      const labelA = "v" + (before + 1) + " (antes)";
-      const labelB = "v" + versions.length + " (ahora)";
+      const labelA = "v" + (before + 1) + " (" + T.before + ")";
+      const labelB = "v" + versions.length + " (" + T.now + ")";
       imgB.onload = () => {
         pixel.on = imgB.naturalWidth <= PIXEL_MAX && imgB.naturalHeight <= PIXEL_MAX;
         body.classList.toggle("pixel-mode", pixel.on);
@@ -160,7 +161,7 @@
       range.min = "0";
       range.max = "100";
       range.value = "50";
-      range.title = "Arrastra para comparar";
+      range.title = T.dragTip;
       const set = () => {
         imgB.style.clipPath = "inset(0 0 0 " + range.value + "%)";
         line.style.left = range.value + "%";
@@ -209,13 +210,13 @@
       };
       img.onclick = () => openImage(it);
       fig.append(img, el("figcaption", "", it.name));
-      fig.append(button("check", "Me quedo con esta", "Se lo escribe a Claude (tú le das a Enter)", () => {
+      fig.append(button("check", T.pick, T.pickTip, () => {
         vscode.postMessage({ type: "pick", path: it.path });
       }, "primary"));
       grid.append(fig);
     }
     grid.style.setProperty("--cols", String(Math.min(items.length, items.length === 4 ? 2 : 3)));
-    showViewer([el("span", "zoomlabel", items.length + " variantes · clic en una para ampliarla")], grid);
+    showViewer([el("span", "zoomlabel", T.variants.replace("{0}", items.length))], grid);
   }
 
   window.addEventListener("resize", () => redraw && redraw());
