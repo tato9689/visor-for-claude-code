@@ -106,6 +106,12 @@ exports.run = async function () {
   await sleep(500);
   check(typed === `"${sprite}" `, `escribe la ruta entre comillas en la terminal de Claude: ${JSON.stringify(typed)}`);
 
+  // Una ruta con salto de línea no se escribe nunca (sería como pulsar Enter).
+  typed = "";
+  await vscode.commands.executeCommand("claudePreview.askChange", { path: "/tmp/x.png\nrm -rf ~" });
+  await sleep(300);
+  check(typed === "", "no escribe rutas con saltos de línea");
+
   // Sonido: si VS Code no sabe AAC (versiones viejas), pasa el audio a Opus con ffmpeg.
   await vscode.commands.executeCommand("claudePreview._ui", { action: "soundForce", path: video });
   for (let i = 0; i < 20 && !(await state()).lastSound; i++) await sleep(500);

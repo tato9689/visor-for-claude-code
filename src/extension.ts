@@ -358,6 +358,12 @@ class PreviewProvider implements vscode.WebviewViewProvider {
 
 /** Escribe en la terminal donde corre Claude, sin pulsar Enter: el usuario termina la frase. */
 function sendToClaude(text: string) {
+  // Un salto de línea (u otro carácter de control) en un nombre de archivo equivaldría a pulsar Enter:
+  // en una terminal normal podría ejecutar un comando. Esas rutas no se escriben nunca.
+  if (/[\x00-\x1f\x7f]/.test(text)) {
+    vscode.window.showWarningMessage("La ruta de este archivo tiene caracteres raros (saltos de línea o de control). Por seguridad no la escribo en la terminal.");
+    return;
+  }
   const terms = vscode.window.terminals;
   const term = terms.find((t) => /claude/i.test(t.name)) ?? vscode.window.activeTerminal ?? (terms.length === 1 ? terms[0] : undefined);
   if (!term) {
