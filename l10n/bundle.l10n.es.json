@@ -70,5 +70,6 @@
   "Drag to compare": "Arrastra para comparar",
   "Keep this one": "Me quedo con esta",
   "Types it for Claude (you press Enter)": "Se lo escribe a Claude (tú le das a Enter)",
-  "{0} variants · click one to enlarge": "{0} variantes · clic en una para ampliarla"
+  "{0} variants · click one to enlarge": "{0} variantes · clic en una para ampliarla",
+  "Can't read the Claude session yet ({0}). Retrying…": "Todavía no puedo leer la sesión de Claude ({0}). Lo vuelvo a intentar…"
 }

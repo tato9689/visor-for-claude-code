@@ -108,7 +108,7 @@ exports.run = async function () {
   // «Cambiar»: escribe la ruta en la terminal de Claude, sin Enter.
   await vscode.commands.executeCommand("visor.askChange", { path: sprite });
   await sleep(500);
-  check(typed === `"${sprite}" `, `escribe la ruta entre comillas en la terminal de Claude: ${JSON.stringify(typed)}`);
+  check(typed === `'${sprite}' `, `escribe la ruta entre comillas simples en la terminal de Claude: ${JSON.stringify(typed)}`);
 
   // Una ruta con salto de línea no se escribe nunca (sería como pulsar Enter).
   typed = "";
@@ -126,8 +126,9 @@ exports.run = async function () {
 
   // HTML con imagen y CSS relativos.
   await vscode.commands.executeCommand("visor._ui", { action: "html", path: html });
-  await sleep(1500);
-  const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
+  const labels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label));
+  for (let i = 0; i < 30 && !labels().includes(path.basename(html)); i++) await sleep(200); // la pestaña tarda a veces más de 1,5 s
+  const tabs = labels();
   check(tabs.includes(path.basename(html)), `abre el HTML en una pestaña (${tabs.join(", ")})`);
   await shot("html");
 

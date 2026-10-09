@@ -23,8 +23,11 @@ export class VersionStore {
     this.byPath.clear();
   }
 
-  /** Apunta una versión del archivo si su contenido es distinto del último visto. Devuelve todas las versiones. */
-  record(filePath: string, bytes: Buffer, timestamp?: string): Version[] {
+  /**
+   * Apunta una versión del archivo si su contenido es distinto del último visto. Devuelve todas las versiones,
+   * o undefined si no se pudo guardar la copia (el panel enseña entonces el archivo tal cual, sin antes/después).
+   */
+  record(filePath: string, bytes: Buffer, timestamp?: string): Version[] | undefined {
     const hash = crypto.createHash("sha1").update(bytes).digest("hex");
     const list = this.byPath.get(filePath) ?? [];
     const last = list[list.length - 1];
@@ -45,7 +48,8 @@ export class VersionStore {
         if (list.length > MAX_VERSIONS) list.splice(0, list.length - MAX_VERSIONS);
         this.byPath.set(filePath, list);
       } catch {
-        // Sin sitio donde copiar: se sigue sin antes/después, no es grave.
+        // Sin sitio donde copiar (disco lleno, carpeta de solo lectura): sin antes/después para esta versión.
+        return undefined;
       }
     }
     return list.slice();

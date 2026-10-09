@@ -80,9 +80,9 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     };
     view.webview.html = this.html(view.webview);
     view.webview.onDidReceiveMessage((m) => this.onMessage(m));
-    this.connect();
     this.timers.push(setInterval(() => this.poll(), POLL_MS));
-    this.timers.push(setInterval(() => this.checkSession(), SESSION_CHECK_MS));
+    this.timers.push(setInterval(() => { try { this.checkSession(); } catch { /* se reintenta en el siguiente tick */ } }, SESSION_CHECK_MS));
+    this.connect();
     view.onDidDispose(() => this.dispose());
   }
 
@@ -123,21 +123,33 @@ class PreviewProvider implements vscode.WebviewViewProvider {
 
   /** Se engancha a la sesión activa (y a sus subagentes) y carga sus últimos elementos. */
   private connect() {
+    try {
+      this.connectOnce();
+    } catch (err) {
+      // Sin mainFile, checkSession lo vuelve a intentar en unos segundos.
+      this.sources.clear();
+      this.mainFile = undefined;
+      this.post({ type: "status", text: t("Can't read the Claude session yet ({0}). Retrying…", (err as Error).message) });
+    }
+  }
+
+  private connectOnce() {
     const file = findActiveSession(this.workspacePath());
     this.sources.clear();
-    this.mainFile = file;
+    this.mainFile = undefined;
     if (!file) {
       this.post({ type: "status", text: t("No Claude Code sessions yet.") });
       return;
     }
     const events: MediaEvent[] = [];
     for (const f of [file, ...subagentFiles(file)]) events.push(...this.addSource(f, f !== file));
+    this.mainFile = file;
     // Los subagentes corren en paralelo a la sesión principal: se ordena todo por hora.
     events.sort((a, b) => (a.timestamp ?? "").localeCompare(b.timestamp ?? ""));
     const max = vscode.workspace.getConfiguration("visor").get<number>("maxItems", 60);
     this.versions.reset();
     this.items = events.slice(-max);
-    this.post({ type: "reset", items: this.items.map((e) => this.toView(e)), session: path.basename(file, ".jsonl") });
+    this.post({ type: "reset", items: this.items.map((e) => this.safeView(e)), session: path.basename(file, ".jsonl") });
   }
 
   /** Empieza a seguir un historial y devuelve lo que ya tenía. */
@@ -177,9 +189,18 @@ class PreviewProvider implements vscode.WebviewViewProvider {
   private emit(events: MediaEvent[]) {
     for (const e of events) {
       this.items.push(e);
-      this.post({ type: "add", item: this.toView(e) });
+      this.post({ type: "add", item: this.safeView(e) });
     }
     if (this.items.length > MAX_ITEMS) this.items.splice(0, this.items.length - MAX_ITEMS);
+  }
+
+  /** toView sin que un archivo raro (borrado a medias, ilegible) se lleve por delante el resto del lote. */
+  private safeView(e: MediaEvent) {
+    try {
+      return this.toView(e);
+    } catch {
+      return { id: e.id, kind: e.kind, path: e.path, name: e.path ? path.basename(e.path) : "?", action: e.action, tool: e.tool, timestamp: e.timestamp, sub: !!e.sub, missing: true };
+    }
   }
 
   /** Prepara un elemento para el panel. Las imágenes van por su copia guardada: así cada versión tiene su URL y no sale la vieja de caché. */
@@ -193,8 +214,12 @@ class PreviewProvider implements vscode.WebviewViewProvider {
       const bytes = e.data ? Buffer.from(e.data, "base64") : e.path ? readSmall(e.path) : undefined;
       if (bytes && e.path) {
         const list = this.versions.record(e.path, bytes, e.timestamp);
-        versions = list.map((v) => ({ src: uri(v.file), timestamp: v.timestamp }));
-        src = versions[versions.length - 1]?.src;
+        if (list) {
+          versions = list.map((v) => ({ src: uri(v.file), timestamp: v.timestamp }));
+          src = versions[versions.length - 1]?.src;
+        } else {
+          src = `data:${e.mediaType ?? (e.kind === "svg" ? "image/svg+xml" : mimeFromPath(e.path))};base64,${bytes.toString("base64")}`;
+        }
       }
       if (!src && e.data && e.mediaType) src = `data:${e.mediaType};base64,${e.data}`;
       else if (!src && bytes && e.kind === "svg") src = `data:image/svg+xml;base64,${bytes.toString("base64")}`;
@@ -379,8 +404,13 @@ function sendToClaude(text: string) {
   term.sendText(text, false);
 }
 
-function quotePath(p: string): string {
-  return /[\s'"]/.test(p) ? `"${p}"` : p;
+/**
+ * Entre comillas simples si hace falta: si la terminal resulta ser un shell y no Claude, un nombre como
+ * «$(algo).png» o «`algo`.png» no se ejecuta aunque el usuario pulse Enter.
+ */
+export function quotePath(p: string): string {
+  if (/^[\w./~@+:=,\\-]+$/.test(p)) return p;
+  return `'${p.replace(/'/g, `'\\''`)}'`;
 }
 
 function copyPath(p: string) {
@@ -411,7 +441,9 @@ function openHtmlPanel(file: string) {
   const render = () => {
     let content: string;
     try {
-      content = inlineLocalAssets(fs.readFileSync(file, "utf8"), path.dirname(file));
+      // Solo se embebe lo de su proyecto (o de su carpeta, si no está en ninguno).
+      const root = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file))?.uri.fsPath ?? path.dirname(file);
+      content = inlineLocalAssets(fs.readFileSync(file, "utf8"), path.dirname(file), root);
     } catch (err) {
       panel.webview.html = `<p>${escapeHtml(t("Can't open {0}: {1}", file, (err as Error).message))}</p>`;
       return;
@@ -456,8 +488,11 @@ function keepGuess(e: MediaEvent): boolean {
   try {
     const st = fs.statSync(file);
     if (!st.isFile()) return false;
-    const when = e.timestamp ? Date.parse(e.timestamp) : Date.now();
-    if (Math.abs(st.mtimeMs - when) > 10 * 60 * 1000) return false;
+    // Tocado entre el inicio del comando y poco después de que acabara (un vídeo de Kling puede tardar
+    // bastante más de 10 minutos). Lo de mucho antes es un archivo de entrada, no uno generado.
+    const start = e.timestamp ? Date.parse(e.timestamp) : Date.now();
+    const done = e.doneAt ? Date.parse(e.doneAt) : start;
+    if (st.mtimeMs < start - 2 * 60 * 1000 || st.mtimeMs > Math.max(start, done) + 10 * 60 * 1000) return false;
     e.path = file;
     return true;
   } catch {
@@ -486,7 +521,12 @@ function readSmall(file: string): Buffer | undefined {
 }
 
 function makeNonce(): string {
-  return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join("");
+  return crypto.randomBytes(18).toString("base64").replace(/[+/=]/g, "");
+}
+
+function mimeFromPath(p: string): string {
+  const ext = path.extname(p).slice(1).toLowerCase();
+  return ({ jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", avif: "image/avif", svg: "image/svg+xml" } as Record<string, string>)[ext] ?? "image/png";
 }
 
 /** Textos del panel lateral: el webview no puede llamar a l10n, así que se los pasa la extensión. */

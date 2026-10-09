@@ -15,6 +15,7 @@ export interface MediaEvent {
   timestamp?: string;
   /** Ruta sacada de un comando de terminal: hay que comprobar que el archivo existe y es reciente. */
   guess?: boolean;
+  doneAt?: string;       // hora del resultado de la herramienta (cuándo acabó el comando)
   /** Viene del historial de un subagente, no de la sesión principal. */
   sub?: boolean;
 }
@@ -128,7 +129,7 @@ export class TranscriptParser {
         if (use?.command) {
           const rel = use.cwd ? relativePathsInCommand(use.command).map((r) => resolveFrom(use.cwd!, r)) : [];
           [...new Set([...pathsInCommand(use.command), ...rel])].forEach((p, i) => {
-            out.push({ id: `${b.tool_use_id}~${i}`, kind: kindFromPath(p)!, path: p, tool, action: "write", timestamp: use.timestamp ?? timestamp, guess: true });
+            out.push({ id: `${b.tool_use_id}~${i}`, kind: kindFromPath(p)!, path: p, tool, action: "write", timestamp: use.timestamp ?? timestamp, doneAt: timestamp, guess: true });
           });
           continue;
         }

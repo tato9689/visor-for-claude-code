@@ -2,7 +2,7 @@
   "name": "visor-for-claude-code",
   "displayName": "Visor — media previews for Claude Code",
   "description": "See the images, SVG, HTML and video Claude Code reads or creates, live in a side panel. Before/after, variants, crisp pixel art. Works over Remote-SSH.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "tato9689",
   "license": "MIT",
   "repository": {
