@@ -6,16 +6,18 @@ const os = require("os");
 const { runTests } = require("@vscode/test-electron");
 
 async function main() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cp-e2e-"));
-  const workspace = path.join(tmp, "proyecto");
+  // CP_ROOT: carpeta fija (la demo la usa para que las rutas que se ven sean cortas).
+  const tmp = process.env.CP_ROOT || fs.mkdtempSync(path.join(os.tmpdir(), "cp-e2e-"));
+  const workspace = path.join(tmp, process.env.CP_WS_NAME || "proyecto");
   const claudeDir = path.join(tmp, "claude");
   fs.mkdirSync(workspace);
   fs.mkdirSync(path.join(claudeDir, "projects", workspace.replace(/[^a-zA-Z0-9]/g, "-")), { recursive: true });
   await runTests({
     extensionDevelopmentPath: path.resolve(__dirname, "../.."),
-    extensionTestsPath: path.resolve(__dirname, "suite.js"),
+    extensionTestsPath: path.resolve(__dirname, process.env.CP_SUITE || "suite.js"), // demo.js graba el GIF
     launchArgs: [workspace, "--disable-extensions", "--disable-gpu", "--no-sandbox"],
-    extensionTestsEnv: { CLAUDE_CONFIG_DIR: claudeDir, CP_WORKSPACE: workspace, CP_SHOTS: process.env.CP_SHOTS || "" },
+    extensionTestsEnv: { CLAUDE_CONFIG_DIR: claudeDir, CP_WORKSPACE: workspace, CP_SHOTS: process.env.CP_SHOTS || "",
+      CP_ASSETS: process.env.CP_ASSETS || "", CP_REC: process.env.CP_REC || "" },
   });
 }
 main().catch((e) => { console.error(e); process.exit(1); });
