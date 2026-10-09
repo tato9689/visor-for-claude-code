@@ -29,11 +29,15 @@ The extension runs next to Claude Code (on the remote host when you use Remote-S
 
 ## Install
 
-Until it is on the Marketplace: download the `.vsix` from [Releases](https://github.com/tato9689/visor-for-claude-code/releases), then in VS Code open Extensions → `…` → **Install from VSIX…**.
+- **VS Code Marketplace:** search for *Visor* in the Extensions view, or open [the listing](https://marketplace.visualstudio.com/items?itemName=tato9689.visor-for-claude-code).
+- **Open VSX** (VSCodium, Cursor, Windsurf…): [open-vsx.org/extension/tato9689/visor-for-claude-code](https://open-vsx.org/extension/tato9689/visor-for-claude-code).
+- **Manual:** download the `.vsix` from [Releases](https://github.com/tato9689/visor-for-claude-code/releases), then Extensions → `…` → **Install from VSIX…**.
+
+When Claude Code runs on a remote host over Remote-SSH, install it there (VS Code offers *Install in SSH: …*).
 
 ## Status
 
-Early version (0.1.x). Feedback and issues welcome.
+Early version (0.2.x). Feedback and issues welcome.
 
 Icons: [Codicons](https://github.com/microsoft/vscode-codicons) by Microsoft, CC BY 4.0.
 
