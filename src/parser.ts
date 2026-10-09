@@ -40,6 +40,28 @@ const PATH_IN_COMMAND = /(?:^|[\s"'=(>])((?:~|\/|[a-zA-Z]:[\\/])[^\s"'<>|;&()]*\
 // Lo mismo entre comillas, que es como van las rutas con espacios ("C:\\Mis juegos\\portada.png").
 const QUOTED_PATH_IN_COMMAND = /(["'])((?:~|\/|[a-zA-Z]:[\\/])[^"'\n]*?\.(?:png|jpe?g|gif|webp|avif|svg|html?|mp4|webm|mov))\1/gi;
 
+// Rutas relativas a la carpeta de trabajo («-o art/mayor.png», «./out.webp»), que es como las
+// escribe Claude casi siempre. Sin «:» para no confundirlas con URLs ni con unidades de Windows.
+const EXTS = "png|jpe?g|gif|webp|avif|svg|html?|mp4|webm|mov";
+const REL_PATH_IN_COMMAND = new RegExp(`(?:^|[\\s"'=(>])((?:\\.{1,2}/)?[\\w][^\\s"'<>|;&():]*\\.(?:${EXTS}))(?=$|[\\s"'<>|;&)])`, "gi");
+const QUOTED_REL_PATH = new RegExp(`(["'])((?![~/]|[a-zA-Z]:)[^"'\\n:]*?\\.(?:${EXTS}))\\1`, "gi");
+
+/** Rutas relativas a archivos multimedia en un comando; se resuelven contra el cwd del transcript. */
+export function relativePathsInCommand(cmd: string): string[] {
+  const found = new Set<string>();
+  for (const m of cmd.matchAll(QUOTED_REL_PATH)) found.add(m[2]);
+  for (const m of cmd.matchAll(REL_PATH_IN_COMMAND)) if (!found.has(m[1])) found.add(m[1]);
+  return [...found];
+}
+
+/** Une una ruta relativa con la carpeta de trabajo, con el separador que use esa carpeta. */
+export function resolveFrom(cwd: string, rel: string): string {
+  const win = /^[a-zA-Z]:\\/.test(cwd);
+  const sep = win ? "\\" : "/";
+  const clean = rel.replace(/^\.\//, "");
+  return cwd.replace(/[\\/]+$/, "") + sep + (win ? clean.replace(/\//g, "\\") : clean);
+}
+
 /** Rutas multimedia que aparecen en un comando de Bash (las imágenes de Gemini/fal se generan así). */
 export function pathsInCommand(cmd: string): string[] {
   const found = new Set<string>();
@@ -50,7 +72,7 @@ export function pathsInCommand(cmd: string): string[] {
 
 /** Estado entre líneas: empareja cada tool_use con su tool_result. */
 export class TranscriptParser {
-  private pending = new Map<string, { tool: string; path?: string; command?: string; timestamp?: string }>();
+  private pending = new Map<string, { tool: string; path?: string; command?: string; cwd?: string; timestamp?: string }>();
 
   /** Procesa una línea del .jsonl y devuelve los eventos multimedia que contiene. */
   parseLine(line: string): MediaEvent[] {
@@ -72,7 +94,8 @@ export class TranscriptParser {
         const tool = String(b.name ?? "");
         const path = typeof b.input?.file_path === "string" ? b.input.file_path : undefined;
         const command = tool === "Bash" && typeof b.input?.command === "string" ? b.input.command : undefined;
-        this.pending.set(b.id, { tool, path, command, timestamp });
+        const cwd = typeof d.cwd === "string" ? d.cwd : undefined;
+        this.pending.set(b.id, { tool, path, command, cwd, timestamp });
         // Escrituras: el archivo ya existe en disco tras la herramienta; avisamos al llegar el resultado.
         continue;
       }
@@ -103,7 +126,8 @@ export class TranscriptParser {
         }
 
         if (use?.command) {
-          pathsInCommand(use.command).forEach((p, i) => {
+          const rel = use.cwd ? relativePathsInCommand(use.command).map((r) => resolveFrom(use.cwd!, r)) : [];
+          [...new Set([...pathsInCommand(use.command), ...rel])].forEach((p, i) => {
             out.push({ id: `${b.tool_use_id}~${i}`, kind: kindFromPath(p)!, path: p, tool, action: "write", timestamp: use.timestamp ?? timestamp, guess: true });
           });
           continue;

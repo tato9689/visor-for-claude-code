@@ -1,22 +1,27 @@
 # Regrabar la demo (docs/demo.gif y docs/demo.mp4)
 
-`test/e2e/demo.js` abre un VS Code real en un Xvfb, escribe en vivo una sesión de Claude falsa con material del juego Cubs of Brutality (retratos, una captura, 6 s del tráiler sin sonido y la página /world) y mueve el ratón con `xdotool`. Necesita `xvfb-run`, `xdotool`, `ffmpeg` e ImageMagick.
+La demo es una sesión **real** de Claude Code. `test/e2e/demo.js` abre un VS Code de verdad en un Xvfb, arranca `claude` en su terminal (con `lanzar-claude.sh` y los permisos de `demo-permisos.json`), le escribe cinco peticiones y espera a que termine cada turno leyendo su transcript de `~/.claude/projects/`. Visor lee ese mismo transcript. Lo único preparado son los retratos: `tools/portrait.py` copia renders ya hechos en vez de generarlos (pixel art bueno en directo costaría dinero y no saldría igual). El ratón se mueve con `xdotool`.
 
-Material: carpeta con `lumberjack_v1.png`, `lumberjack_v2.png`, `mayor_a/b/c.png`, `innkeeper.png`, `shroomlands.png`, `trailer.mp4` y `world/index.html` (sale del repo del juego y de `/var/www/roguelike/world`).
+Necesita `xvfb-run`, `xdotool`, `ffmpeg`, ImageMagick y Claude Code con sesión iniciada.
+
+## Material (fuera del repo: es arte del juego Cubs of Brutality)
+
+- **Plantilla del proyecto** (`CP_TEMPLATE`): `test/e2e/demo-workspace/` más `art/portraits/lumberjack.png` (versión vieja), `art/portraits/innkeeper.png`, `art/shroomlands.png`, `art/trailer.mp4` (30 s del tráiler, sin audio) y `web/world/index.html`. Con fechas antiguas (`touch -d '3 days ago'`), para que Visor no tome los ficheros de entrada por recién creados.
+- **Renders** (`CP_LIBRARY`): `mayor_a.png`, `mayor_b.png`, `mayor_c.png`, `lumberjack_v2.png`.
+
+## Grabar
 
 ```bash
 npm run build
-rm -rf /tmp/demo && mkdir -p /tmp/demo
-CP_ROOT=/tmp/demo CP_SUITE=demo.js CP_WS_NAME=cubs-of-brutality CP_ASSETS=<material> \
-CP_REC=raw.mp4 CP_SLIDER=682,1066,536 CP_PICK=873,437 CP_PLAY=88,488 \
+rm -rf /tmp/demo ~/.claude/projects/-tmp-demo-cubs-of-brutality && mkdir -p /tmp/demo
+CP_REAL=1 CP_ROOT=/tmp/demo CP_WS_NAME=cubs-of-brutality CP_SUITE=demo.js \
+CP_TEMPLATE=<plantilla> CP_LIBRARY=<renders> \
+CP_REC=raw.mp4 CP_MARKS=marks.json CP_SLIDER=682,1066,536 CP_PICK=873,437 CP_PLAY=88,488 \
 xvfb-run -a -s "-screen 0 1400x900x24" node test/e2e/run.js
+python3 test/e2e/montar_demo.py raw.mp4 marks.json docs
 ```
 
-Las coordenadas (deslizador del antes/después, botón «Keep this one» de la variante del medio, play del vídeo) se midieron con `CP_SHOTS=<carpeta>` en vez de `CP_REC`. Si cambia la interfaz, se vuelven a medir.
-
-Montaje (recorta la barra de título y acelera 1,15x):
-
-```bash
-ffmpeg -ss 1 -i raw.mp4 -vf "crop=1400:864:0:36,setpts=PTS/1.15,tpad=stop_mode=clone:stop_duration=1.5" -an -c:v libx264 -crf 22 -pix_fmt yuv420p -movflags +faststart docs/demo.mp4
-ffmpeg -i docs/demo.mp4 -vf "fps=12,scale=1000:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=160:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" docs/demo.gif
-```
+- Las coordenadas (deslizador del antes/después, «Keep this one» de la variante del medio, play del vídeo) se miden con `CP_SHOTS=<carpeta>` en lugar de `CP_REC`. Si cambia la interfaz, hay que volver a medirlas.
+- `run.js` deja un historial vacío y antiguo en la carpeta del proyecto, para que Visor no enseñe al principio la sesión más reciente de otro proyecto.
+- La primera vez Claude Code pregunta si confías en la carpeta; `demo.js` contesta que sí.
+- `montar_demo.py` recorta la barra de título, pone a 4x los ratos en que Claude trabaja y el resto a 1,15x.

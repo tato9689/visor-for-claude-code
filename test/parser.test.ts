@@ -99,6 +99,24 @@ describe("rutas en comandos de terminal", () => {
     p.parseLine(use("b1", "Bash", { command: "python3 gen.py -o /root/media/foto.jpg" }));
     expect(p.parseLine(result("b1", "ok"))[0]).toMatchObject({ kind: "image", path: "/root/media/foto.jpg", action: "write", guess: true });
   });
+
+  it("rutas relativas: las resuelve contra el cwd del transcript (así las escribe Claude)", async () => {
+    const { relativePathsInCommand, resolveFrom } = await import("../src/parser");
+    expect(relativePathsInCommand("python3 tools/portrait.py mayor --take a -o art/portraits/mayor_a.png")).toEqual(["art/portraits/mayor_a.png"]);
+    expect(relativePathsInCommand("ffmpeg -y -ss 10 -i art/trailer.mp4 -t 6 -an art/cut.mp4 2>&1 | tail -n 3")).toEqual(["art/trailer.mp4", "art/cut.mp4"]);
+    expect(relativePathsInCommand(`magick ./in.webp "my art/final cut.png"`)).toEqual(["my art/final cut.png", "./in.webp", "cut.png"]);
+    expect(relativePathsInCommand("curl https://x.com/a.png -o /tmp/b.png")).toEqual([]);
+    expect(relativePathsInCommand("cp ~/x/y.webp C:\\out\\z.png")).toEqual([]);
+    expect(resolveFrom("/tmp/demo/", "./art/a.png")).toBe("/tmp/demo/art/a.png");
+    expect(resolveFrom("C:\\Juegos\\cubs", "art/a.png")).toBe("C:\\Juegos\\cubs\\art\\a.png");
+
+    const p = new TranscriptParser();
+    p.parseLine(JSON.stringify({ type: "assistant", cwd: "/tmp/demo/cubs", message: { content: [{ type: "tool_use", id: "r1", name: "Bash", input: { command: "python3 gen.py -o art/mayor.png" } }] } }));
+    expect(p.parseLine(result("r1", "ok"))).toMatchObject([{ path: "/tmp/demo/cubs/art/mayor.png", action: "write", guess: true }]);
+    // Sin cwd no se adivina nada relativo.
+    p.parseLine(use("r2", "Bash", { command: "python3 gen.py -o art/mayor.png" }));
+    expect(p.parseLine(result("r2", "ok"))).toEqual([]);
+  });
 });
 
 describe("rutas de Windows", () => {

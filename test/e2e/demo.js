@@ -1,8 +1,9 @@
-// Graba el GIF de demostración con material real (retratos y tráiler del juego de Tato).
-// No es una prueba: monta una sesión de Claude falsa, la va escribiendo en vivo y mueve
-// el ratón con xdotool. Uso: ver docs/demo.md.
+// Graba la demo con una sesión REAL de Claude Code en la terminal de VS Code y Visor leyendo
+// su transcript de verdad. El material es del juego de Tato (retratos, tráiler sin sonido,
+// página /world). Ver docs/demo.md.
 const vscode = require("vscode");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { execSync, spawn } = require("child_process");
 
@@ -11,99 +12,96 @@ const shotDir = process.env.CP_SHOTS; // capturas sueltas para medir coordenadas
 let n = 0;
 async function shot(name) {
   if (!shotDir) return;
-  await sleep(600);
+  await sleep(500);
   execSync(`import -window root ${path.join(shotDir, `${String(++n).padStart(2, "0")}-${name}.png`)}`);
 }
 const xdo = (args) => execSync(`xdotool ${args}`);
+const nums = (v, k) => (v || "").split(",").map(Number).concat(Array(k).fill(0)).slice(0, k);
 
 exports.run = async function () {
   const ws = process.env.CP_WORKSPACE;
-  const A = process.env.CP_ASSETS;
-  const dir = path.join(process.env.CLAUDE_CONFIG_DIR, "projects", ws.replace(/[^a-zA-Z0-9]/g, "-"));
-  const session = path.join(dir, "sesion.jsonl");
-  const art = path.join(ws, "art");
-  fs.mkdirSync(path.join(art, "portraits"), { recursive: true });
-  fs.mkdirSync(path.join(ws, "web", "world"), { recursive: true });
-  const P = (f) => path.join(art, "portraits", f);
-  const lumber = P("lumberjack.png");
-  const mayors = ["mayor_a.png", "mayor_b.png", "mayor_c.png"].map(P);
-  const inn = P("innkeeper.png");
-  const shot1 = path.join(art, "shroomlands.png");
-  const trailer = path.join(art, "trailer_cut.mp4");
-  const world = path.join(ws, "web", "world", "index.html");
+  const projDir = path.join(os.homedir(), ".claude", "projects", ws.replace(/[^a-zA-Z0-9]/g, "-"));
+  const lumber = path.join(ws, "art/portraits/lumberjack.png");
+  const mayors = ["a", "b", "c"].map((k) => path.join(ws, `art/portraits/mayor_${k}.png`));
+  const world = path.join(ws, "web/world/index.html");
 
-  const line = (o) => JSON.stringify(o) + "\n";
-  const ts = () => new Date().toISOString();
-  const use = (id, name, input) => line({ type: "assistant", timestamp: ts(), message: { content: [{ type: "tool_use", id, name, input }] } });
-  const res = (id, content) => line({ type: "user", timestamp: ts(), message: { content: [{ type: "tool_result", tool_use_id: id, content }] } });
-  const img = (f, mt) => [{ type: "image", source: { type: "base64", media_type: mt, data: fs.readFileSync(f).toString("base64") } }];
-  const add = (s) => fs.appendFileSync(session, s);
-
-  // Lo que ya había en la sesión: Claude miró una captura del juego y dos retratos.
-  fs.copyFileSync(path.join(A, "shroomlands.png"), shot1);
-  fs.copyFileSync(path.join(A, "innkeeper.png"), inn);
-  fs.copyFileSync(path.join(A, "lumberjack_v1.png"), lumber);
-  fs.writeFileSync(session,
-    use("a", "Read", { file_path: shot1 }) + res("a", img(shot1, "image/png")) +
-    use("b", "Read", { file_path: inn }) + res("b", img(inn, "image/png")) +
-    use("c", "Read", { file_path: lumber }) + res("c", img(lumber, "image/png")));
-
-  // Terminal «claude» que enseña lo que se le escribe (así se ve el «I'll keep this one»).
-  const out = new vscode.EventEmitter();
-  const say = (s) => out.fire(s.replace(/\n/g, "\r\n"));
-  const pty = { onDidWrite: out.event, open() {}, close() {}, handleInput: (d) => say(d) };
-  const term = vscode.window.createTerminal({ name: "claude", pty });
+  // Turnos terminados de Claude, leídos del transcript real.
+  const endTurns = () => {
+    if (!fs.existsSync(projDir)) return 0;
+    let k = 0;
+    for (const f of fs.readdirSync(projDir).filter((f) => f.endsWith(".jsonl"))) {
+      for (const l of fs.readFileSync(path.join(projDir, f), "utf8").split("\n")) {
+        if (!l.includes('"end_turn"')) continue;
+        try { const o = JSON.parse(l); if (o.type === "assistant" && o.message?.stop_reason === "end_turn") k++; } catch {}
+      }
+    }
+    return k;
+  };
 
   const ext = vscode.extensions.all.find((e) => e.packageJSON.name === "visor-for-claude-code");
   await ext.activate();
   await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
   await vscode.commands.executeCommand("notifications.toggleDoNotDisturbMode").then(undefined, () => {});
   await vscode.commands.executeCommand("workbench.view.extension.visor");
-  term.show(true);
+
+  // Claude Code de verdad, arrancado directamente (sin shell delante).
+  const term = vscode.window.createTerminal({
+    name: "claude", cwd: ws, shellPath: path.join(__dirname, "lanzar-claude.sh"), // limpia el entorno y ejecuta claude
+    env: { DEMO_LIBRARY: process.env.CP_LIBRARY },
+  });
+  term.show(false);
   await sleep(2500);
   xdo(`search --onlyvisible --class Code windowmove 0 0 windowsize 1400 900`);
-  await sleep(1500);
-
+  await sleep(6000);
+  await shot("arranque");
+  term.sendText("\x1b[B", false); await sleep(400); term.sendText("\r", false); // «Yes, I trust this folder» (la primera vez)
+  await sleep(3000);
+  term.sendText("/clear", false); await sleep(500); term.sendText("\r", false); // pantalla limpia antes de grabar
+  await sleep(2500);
+  await shot("listo");
   await vscode.commands.executeCommand("notifications.clearAll");
-  await sleep(500);
+
+  const marks = [];
+  let t0 = Date.now();
+  const mark = (label) => marks.push({ t: (Date.now() - t0) / 1000, label });
   let rec;
   if (process.env.CP_REC) {
     rec = spawn("ffmpeg", ["-v", "error", "-y", "-f", "x11grab", "-draw_mouse", "1", "-framerate", "25",
       "-video_size", "1400x900", "-i", process.env.DISPLAY + "+0,0", "-c:v", "libx264", "-preset", "veryfast",
       "-crf", "18", "-pix_fmt", "yuv420p", process.env.CP_REC], { stdio: ["pipe", "inherit", "inherit"] });
-    await sleep(1200);
+    await sleep(1000);
+    t0 = Date.now();
   }
-  const O = "\x1b[38;5;209m", G = "\x1b[90m", R = "\x1b[0m";
-  const prompt = async (s) => { say(`\n${O}>${R} `); for (const ch of s) { say(ch); await sleep(28); } say("\n"); await sleep(500); };
-  const tool = (s) => say(`${O}●${R} ${s}\n`);
 
-  await shot("inicio");
-  await prompt("Draw three takes on the mayor portrait");
-  for (const [i, m] of mayors.entries()) {
-    fs.copyFileSync(path.join(A, path.basename(m)), m);
-    tool(`Write(${path.relative(ws, m)})`);
-    add(use("m" + i, "Write", { file_path: m }) + res("m" + i, "ok"));
-    await sleep(1100);
-  }
-  await prompt("Cut 6 seconds of the trailer for the store page");
-  tool(`Bash(ffmpeg -ss 20 -t 6 -i trailer.mp4 ${path.relative(ws, trailer)})`);
-  fs.copyFileSync(path.join(A, "trailer.mp4"), trailer);
-  add(use("v", "Bash", { command: `ffmpeg -ss 20 -t 6 -i trailer.mp4 -an "${trailer}"` }) + res("v", "ok"));
-  await sleep(1800);
-  await prompt("Redo the lumberjack, much more detail");
-  tool(`Bash(python3 gen_portrait.py lumberjack)`);
-  fs.copyFileSync(path.join(A, "lumberjack_v2.png"), lumber);
-  add(use("l", "Bash", { command: `python3 gen_portrait.py lumberjack -o "${lumber}"` }) + res("l", "ok"));
-  await sleep(2200);
+  const ask = async (text, timeout = 180000) => {
+    const before = endTurns();
+    for (const ch of text) { term.sendText(ch, false); await sleep(35); }
+    await sleep(400);
+    term.sendText("\r", false);
+    mark("espera");
+    const t = Date.now();
+    while (endTurns() <= before) {
+      if (Date.now() - t > timeout) { await shot("atasco"); throw new Error("Claude no terminó: " + text); }
+      await sleep(500);
+    }
+    await sleep(1500);
+    mark("fin");
+  };
+
+  await ask("Look at art/portraits/lumberjack.png and art/shroomlands.png. One line: what are they?");
+  await ask("Make three takes of the mayor portrait: mayor_a, mayor_b and mayor_c in art/portraits/");
+  await ask("Cut 6 seconds of art/trailer.mp4 starting at 0:10, no audio, into art/trailer_cut.mp4");
+  await ask("The lumberjack looks rough. Redo it with much more detail (take v2)");
   await shot("panel");
-  const [vx, vy] = (process.env.CP_PLAY || "0,0").split(",").map(Number);
-  if (vy) { xdo(`mousemove ${vx} ${vy}`); await sleep(400); xdo(`click 1`); await sleep(1200); } // el tráiler se reproduce en el panel
+
+  const [vx, vy] = nums(process.env.CP_PLAY, 2);
+  if (vy) { xdo(`mousemove ${vx} ${vy}`); await sleep(400); xdo(`click 1`); await sleep(1500); }
 
   // Antes / después del leñador, arrastrando el deslizador.
   await vscode.commands.executeCommand("visor._ui", { action: "compare", path: lumber });
-  await sleep(1500);
+  await sleep(1800);
   await shot("comparar");
-  const [sx1, sx2, sy] = (process.env.CP_SLIDER || "0,0,0").split(",").map(Number);
+  const [sx1, sx2, sy] = nums(process.env.CP_SLIDER, 3);
   if (sy) {
     const mid = Math.round((sx1 + sx2) / 2);
     xdo(`mousemove ${mid} ${sy}`); await sleep(400);
@@ -116,38 +114,44 @@ exports.run = async function () {
   }
   await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
 
-  // Las tres variantes del alcalde en cuadrícula; se elige una.
+  // Las tres variantes del alcalde; se elige la del medio y Visor se lo escribe a Claude.
   for (const m of mayors) { await vscode.commands.executeCommand("visor._ui", { action: "select", path: m }); await sleep(350); }
   await vscode.commands.executeCommand("visor._ui", { action: "grid" });
-  await sleep(1600);
+  await sleep(1800);
   await shot("cuadricula");
-  const [px, py] = (process.env.CP_PICK || "0,0").split(",").map(Number);
+  const [px, py] = nums(process.env.CP_PICK, 2);
   if (py) {
-    xdo(`mousemove ${px - 120} ${py - 80}`); await sleep(300);
     for (const t of steps(0, 1, 12)) { xdo(`mousemove ${Math.round(px - 120 + 120 * t)} ${Math.round(py - 80 + 80 * t)}`); await sleep(30); }
     await sleep(500);
     xdo(`click 1`);
-    await sleep(1800);
+    await sleep(1500);
+    await shot("elegido");
+    const before = endTurns();
+    term.sendText("\r", false); // Claude recibe «I'll keep this one: …» y contesta
+    mark("espera");
+    for (let t = Date.now(); endTurns() <= before && Date.now() - t < 120000;) await sleep(500);
+    await sleep(1500);
+    mark("fin");
   }
-  await shot("elegido");
   await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
 
-  // Pixel art nítido y la página del mundo en HTML.
+  // Pixel art nítido.
   await vscode.commands.executeCommand("visor._ui", { action: "image", path: mayors[1] });
-  await sleep(3200);
+  await sleep(3000);
   await shot("pixel");
   await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
-  await prompt("Update the world guide page");
-  fs.copyFileSync(path.join(A, "world", "index.html"), world);
-  tool(`Write(${path.relative(ws, world)})`);
-  add(use("w", "Write", { file_path: world }) + res("w", "ok"));
-  await sleep(1800);
+
+  // La página del mundo: Claude la edita y se abre en Visor.
+  await ask("Add a line under the title of web/world/index.html: \"New: the mayor has a new portrait.\"");
   await vscode.commands.executeCommand("visor._ui", { action: "html", path: world });
-  await sleep(3000);
+  await sleep(3500);
   await shot("html");
 
   if (rec) { rec.stdin.write("q"); await new Promise((r) => rec.on("close", r)); }
-  console.log("DEMO OK");
+  if (process.env.CP_MARKS) fs.writeFileSync(process.env.CP_MARKS, JSON.stringify(marks, null, 2));
+  term.sendText("\x03", false); await sleep(300); term.sendText("\x03", false); // cierra Claude
+  await sleep(1000);
+  console.log("DEMO OK", JSON.stringify(marks));
 };
 
 function steps(a, b, k) {
