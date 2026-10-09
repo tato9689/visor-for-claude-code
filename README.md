@@ -10,7 +10,7 @@ Today the official extension shows `[Image]` in the chat: Claude sees the pictur
 
 ## Features
 
-- **Live panel** with everything Claude reads or generates: images, SVG, HTML and video. Includes files created from the terminal (image generators, scripts) and files touched by **subagents**.
+- **Live panel** with everything Claude reads or generates: images, SVG, HTML and video. Includes files created from the terminal (image generators, scripts), by **MCP tools** (fal, Gemini and similar) and by **subagents**. Two Claude sessions in the same project are followed together.
 - **Before / after.** When Claude redoes an image, compare the old and new version with a slider or side by side. Older versions are kept automatically, even after the file is overwritten.
 - **Ask for a change.** The *Change* button (or right-click on a card) types the file path into Claude's terminal, so you only add what you want changed.
 - **Compare variants.** Select several images, see them in a grid and pick one: *"I'll keep this one"* is sent to Claude.
@@ -23,6 +23,8 @@ Today the official extension shows `[Image]` in the chat: Claude sees the pictur
 ## How it works
 
 The extension runs next to Claude Code (on the remote host when you use Remote-SSH) and follows the session transcript in `~/.claude/projects/`. When Claude reads an image, writes an SVG or HTML file, or a terminal command produces a media file, it shows up in the panel.
+
+If the panel stays empty, open **Output → Visor**: it says which session it is following and what it found. When the current project has no session yet, the panel shows the latest one from another project and says so at the top.
 
 - No servers, no ports, no API keys. It only reads local files.
 - Copies of previous image versions are stored in the extension's own storage and cleaned up after 30 days.

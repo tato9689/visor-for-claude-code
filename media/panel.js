@@ -5,6 +5,7 @@
   const T = JSON.parse(document.body.dataset.i18n); // textos ya traducidos por la extensión
   const list = $("list");
   const status = $("status");
+  const notice = $("notice");
   const seen = new Set();
   const byPath = new Map(); // ruta → tarjeta: si el mismo archivo vuelve a aparecer, sube arriba en vez de duplicarse
   const selected = new Map(); // ruta → item, para comparar variantes
@@ -106,6 +107,7 @@
       img.src = item.src;
       img.alt = item.name;
       img.onload = () => fitPixel(img, list.clientWidth - 16, 260);
+      img.onerror = () => img.replaceWith(el("div", "missing", T.cantShow)); // formato que el webview no sabe pintar, o archivo dañado
       img.onclick = () => openImage(item);
       c.append(img);
     } else if (item.src && item.kind === "video") {
@@ -114,12 +116,18 @@
       v.controls = true;
       v.muted = true;
       v.preload = "metadata";
+      v.onerror = () => {
+        if (c.soundReady) return; // el error es de la versión con sonido: lo gestiona withSound
+        v.replaceWith(el("div", "missing", T.cantShow));
+        c.video = undefined;
+        soundButton(c)?.remove();
+      };
       c.append(v);
       c.video = v;
     } else if (item.kind === "html") {
       c.append(button("globe", T.viewHtml, "", () => vscode.postMessage({ type: "openHtml", path: item.path }), "wide"));
     } else if (item.missing) {
-      c.append(el("div", "missing", T.fileGone));
+      c.append(el("div", "missing", item.missingText || T.fileGone));
     }
 
     if (item.path) {
@@ -288,6 +296,9 @@
       status.textContent = m.value ? T.paused : "";
     } else if (m.type === "status") {
       status.textContent = m.text;
+    } else if (m.type === "notice") {
+      notice.textContent = m.text;
+      notice.hidden = !m.text;
     } else if (m.type === "videoSrc") {
       const c = cardById(m.id);
       if (!c || !c.video) return;
@@ -323,4 +334,6 @@
       }
     }
   });
+  // Ya escucho: que la extensión mande el historial (lo enviado antes de este punto se habría perdido).
+  vscode.postMessage({ type: "ready" });
 })();

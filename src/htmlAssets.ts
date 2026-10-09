@@ -61,6 +61,11 @@ function readSmall(file: string, allowed: string[], root: string): Buffer | unde
   }
 }
 
+function kindOf(file: string): "media" | "code" | undefined {
+  const ext = path.extname(file).slice(1).toLowerCase();
+  return MEDIA_EXT.includes(ext) ? "media" : ext === "css" || ext === "js" || ext === "mjs" ? "code" : undefined;
+}
+
 function dataUri(file: string, root: string): string | undefined {
   const ext = path.extname(file).slice(1).toLowerCase();
   const mime = MIME[ext];
@@ -69,11 +74,15 @@ function dataUri(file: string, root: string): string | undefined {
   return buf ? `data:${mime};base64,${buf.toString("base64")}` : undefined;
 }
 
+/** Referencias locales que no se pudieron embeber (fuera del proyecto, inexistentes, demasiado grandes…). */
+export type Skipped = string[];
+
 /** url(...) dentro de CSS → data: URI, relativo a la carpeta del CSS. */
-export function inlineCssUrls(css: string, baseDir: string, root: string = baseDir): string {
+export function inlineCssUrls(css: string, baseDir: string, root: string = baseDir, skipped: Skipped = []): string {
   return css.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (whole, _q, ref) => {
     const file = resolveRef(ref, baseDir);
     const uri = file && dataUri(file, root);
+    if (file && !uri && !ref.trim().startsWith("data:")) skipped.push(ref.trim());
     // Sin comillas: un data: en base64 no lleva espacios, comillas ni paréntesis, y así vale también dentro de style="…".
     return uri ? `url(${uri})` : whole;
   });
@@ -88,15 +97,16 @@ function attr(tag: string, name: string): string | undefined {
  * Devuelve el HTML con sus recursos locales embebidos. Solo los de dentro de `root`
  * (la carpeta del proyecto; por defecto, la del propio HTML).
  */
-export function inlineLocalAssets(html: string, baseDir: string, root: string = baseDir): string {
+export function inlineLocalAssets(html: string, baseDir: string, root: string = baseDir, skipped: Skipped = []): string {
   // <link rel="stylesheet" href="x.css"> → <style>…</style>
   let out = html.replace(/<link\b[^>]*>/gi, (tag) => {
     if (!/rel\s*=\s*["']?stylesheet/i.test(tag)) return tag;
     const href = attr(tag, "href");
     const file = href && resolveRef(href, baseDir);
     const buf = file && readSmall(file, ["css"], root);
+    if (file && !buf) skipped.push(href!);
     if (!file || !buf) return tag;
-    const css = inlineCssUrls(buf.toString("utf8"), path.dirname(file), root);
+    const css = inlineCssUrls(buf.toString("utf8"), path.dirname(file), root, skipped);
     return `<style>${css.replace(/<\/style/gi, "<\\/style")}</style>`;
   });
 
@@ -105,19 +115,22 @@ export function inlineLocalAssets(html: string, baseDir: string, root: string = 
     const src = attr(` ${attrs}`, "src");
     const file = src && resolveRef(src, baseDir);
     const buf = file && readSmall(file, ["js", "mjs"], root);
+    if (file && !buf) skipped.push(src!);
     if (!file || !buf) return tag;
     const rest = attrs.replace(/\ssrc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i, "");
     return `<script${rest}>${buf.toString("utf8").replace(/<\/script/gi, "<\\/script")}</script>`;
   });
 
   // <style> y style="…" con url(...)
-  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_w, a, css, b) => a + inlineCssUrls(css, baseDir, root) + b);
-  out = out.replace(/(\sstyle\s*=\s*)(["'])([^"']*url\([^"']*)\2/gi, (_w, a, q, css) => a + q + inlineCssUrls(css, baseDir, root) + q);
+  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_w, a, css, b) => a + inlineCssUrls(css, baseDir, root, skipped) + b);
+  out = out.replace(/(\sstyle\s*=\s*)(["'])([^"']*url\([^"']*)\2/gi, (_w, a, q, css) => a + q + inlineCssUrls(css, baseDir, root, skipped) + q);
 
   // src / poster de img, video, audio, source…
   out = out.replace(/(\s(?:src|poster)\s*=\s*)(["'])([^"']+)\2/gi, (whole, a, q, ref) => {
     const file = resolveRef(ref, baseDir);
     const uri = file && dataUri(file, root);
+    // Los <script src> que no se pudieron meter ya se apuntaron arriba; aquí solo imágenes, vídeo, audio.
+    if (file && !uri && kindOf(file) === "media") skipped.push(ref);
     return uri ? a + q + uri + q : whole;
   });
 
@@ -127,6 +140,7 @@ export function inlineLocalAssets(html: string, baseDir: string, root: string = 
       const [ref, ...desc] = p.trim().split(/\s+/);
       const file = resolveRef(ref, baseDir);
       const uri = file && dataUri(file, root);
+      if (file && !uri) skipped.push(ref);
       return [uri ?? ref, ...desc].join(" ");
     });
     return a + q + parts.join(", ") + q;

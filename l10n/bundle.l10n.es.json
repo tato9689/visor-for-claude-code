@@ -71,5 +71,13 @@
   "Keep this one": "Me quedo con esta",
   "Types it for Claude (you press Enter)": "Se lo escribe a Claude (tú le das a Enter)",
   "{0} variants · click one to enlarge": "{0} variantes · clic en una para ampliarla",
-  "Can't read the Claude session yet ({0}). Retrying…": "Todavía no puedo leer la sesión de Claude ({0}). Lo vuelvo a intentar…"
+  "Can't read the Claude session yet ({0}). Retrying…": "Todavía no puedo leer la sesión de Claude ({0}). Lo vuelvo a intentar…",
+  "No Claude session in this project yet. Showing the latest one, from {0}.": "Aún no hay ninguna sesión de Claude en este proyecto. Muestro la última, de {0}.",
+  "Claude has used {0} tools in this session, but none with images, video or HTML that Visor recognizes. Details in Output → Visor.": "Claude ha usado {0} herramientas en esta sesión, pero ninguna con imágenes, vídeo o HTML que Visor reconozca. Detalles en Salida → Visor.",
+  "Can't read the file ({0})": "No puedo leer el archivo ({0})",
+  "Typed into the “{0}” terminal (no terminal is named “claude”)": "Escrito en la terminal «{0}» (ninguna se llama «claude»)",
+  "1 local file not loaded": "1 archivo local sin cargar",
+  "{0} local files not loaded": "{0} archivos locales sin cargar",
+  "Outside the project, missing, too big or not an allowed type:": "Fuera del proyecto, inexistente, demasiado grande o de un tipo no permitido:",
+  "VS Code can't show this file (unsupported format or damaged file)": "VS Code no puede mostrar este archivo (formato no compatible o archivo dañado)"
 }

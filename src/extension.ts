@@ -6,7 +6,7 @@ import * as os from "os";
 import * as path from "path";
 import { MediaEvent, TranscriptParser } from "./parser";
 import { JsonlTailer } from "./tailer";
-import { findActiveSession, subagentFiles } from "./sessions";
+import { findSessions, projectsRoot, subagentFiles } from "./sessions";
 import { VersionStore } from "./versions";
 import { inlineLocalAssets } from "./htmlAssets";
 
@@ -58,6 +58,11 @@ interface Source {
 class PreviewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private mainFile?: string;
+  private sessionDir?: string;
+  private sessionOwn = true;
+  private readError?: string;
+  private ready = false; // el panel ya escucha mensajes
+  private out = vscode.window.createOutputChannel("Visor");
   private sources = new Map<string, Source>();
   private timers: NodeJS.Timeout[] = [];
   private paused = false;
@@ -78,11 +83,13 @@ class PreviewProvider implements vscode.WebviewViewProvider {
       // Claude puede leer o generar archivos en cualquier sitio del disco.
       localResourceRoots: [...diskRoots(), this.ctx.extensionUri, this.ctx.globalStorageUri],
     };
+    // Lo que se manda antes de que el panel cargue su script se pierde (en un equipo lento, el historial entero):
+    // se espera a su «ready» para conectar, y se vuelve a conectar si el panel se recarga.
+    this.ready = false;
     view.webview.html = this.html(view.webview);
     view.webview.onDidReceiveMessage((m) => this.onMessage(m));
     this.timers.push(setInterval(() => this.poll(), POLL_MS));
     this.timers.push(setInterval(() => { try { this.checkSession(); } catch { /* se reintenta en el siguiente tick */ } }, SESSION_CHECK_MS));
-    this.connect();
     view.onDidDispose(() => this.dispose());
   }
 
@@ -117,39 +124,69 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     this.post({ type: "debug", ...msg });
   }
 
-  private workspacePath(): string | undefined {
-    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  private workspacePaths(): string[] {
+    return (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   }
 
-  /** Se engancha a la sesión activa (y a sus subagentes) y carga sus últimos elementos. */
+  private log(msg: string) {
+    this.out.appendLine(`[${new Date().toLocaleTimeString()}] ${msg}`);
+  }
+
+  /** Se engancha a las sesiones activas del proyecto (y a sus subagentes) y carga sus últimos elementos. */
   private connect() {
     try {
       this.connectOnce();
     } catch (err) {
-      // Sin mainFile, checkSession lo vuelve a intentar en unos segundos.
+      // Sin sessionDir, checkSession lo vuelve a intentar en unos segundos.
       this.sources.clear();
-      this.mainFile = undefined;
+      this.mainFile = this.sessionDir = undefined;
+      this.log(`Could not read the session: ${(err as Error).message}`);
       this.post({ type: "status", text: t("Can't read the Claude session yet ({0}). Retrying…", (err as Error).message) });
     }
   }
 
   private connectOnce() {
-    const file = findActiveSession(this.workspacePath());
+    const s = findSessions(this.workspacePaths());
     this.sources.clear();
-    this.mainFile = undefined;
-    if (!file) {
+    this.mainFile = this.sessionDir = undefined;
+    if (!s) {
+      this.post({ type: "notice", text: "" });
       this.post({ type: "status", text: t("No Claude Code sessions yet.") });
+      this.log(`No Claude Code sessions in ${projectsRoot()}`);
       return;
     }
     const events: MediaEvent[] = [];
-    for (const f of [file, ...subagentFiles(file)]) events.push(...this.addSource(f, f !== file));
-    this.mainFile = file;
-    // Los subagentes corren en paralelo a la sesión principal: se ordena todo por hora.
+    for (const main of s.files) {
+      for (const f of [main, ...subagentFiles(main)]) events.push(...this.addSource(f, f !== main));
+    }
+    this.mainFile = s.main;
+    this.sessionDir = s.dir;
+    this.sessionOwn = s.own;
+    // Los subagentes y las otras sesiones corren en paralelo: se ordena todo por hora.
     events.sort((a, b) => (a.timestamp ?? "").localeCompare(b.timestamp ?? ""));
     const max = vscode.workspace.getConfiguration("visor").get<number>("maxItems", 60);
     this.versions.reset();
     this.items = events.slice(-max);
-    this.post({ type: "reset", items: this.items.map((e) => this.safeView(e)), session: path.basename(file, ".jsonl") });
+    this.post({ type: "reset", items: this.items.map((e) => this.safeView(e)), session: path.basename(s.main, ".jsonl") });
+    this.post({ type: "notice", text: s.own ? "" : t("No Claude session in this project yet. Showing the latest one, from {0}.", s.project ?? path.basename(s.dir)) });
+    const stats = this.totalStats();
+    this.log(`${s.own ? "Following this project's sessions" : "No session in this project; showing the latest from another one"}: ${s.files.map((f) => path.basename(f)).join(", ")} (${s.dir}). ` +
+      `${stats.lines} lines, ${stats.toolResults} tool results, ${events.length} media files${stats.badJson ? `, ${stats.badJson} unreadable lines` : ""}.`);
+    this.explainIfEmpty();
+  }
+
+  private totalStats() {
+    const tot = { lines: 0, badJson: 0, toolResults: 0, events: 0 };
+    for (const src of this.sources.values()) for (const k of Object.keys(tot) as (keyof typeof tot)[]) tot[k] += src.parser.stats[k];
+    return tot;
+  }
+
+  /** Si Claude ha usado muchas herramientas y nada es multimedia reconocible, decirlo en vez de seguir «esperando». */
+  private explainIfEmpty() {
+    const st = this.totalStats();
+    if (this.items.length === 0 && st.toolResults >= 10) {
+      this.post({ type: "status", text: t("Claude has used {0} tools in this session, but none with images, video or HTML that Visor recognizes. Details in Output → Visor.", st.toolResults) });
+    }
   }
 
   /** Empieza a seguir un historial y devuelve lo que ya tenía. */
@@ -167,20 +204,35 @@ class PreviewProvider implements vscode.WebviewViewProvider {
   }
 
   private checkSession() {
-    const file = findActiveSession(this.workspacePath());
-    if (file && file !== this.mainFile) return this.connect();
-    if (!file || this.paused) return;
-    for (const f of subagentFiles(file)) {
-      if (!this.sources.has(f)) this.emit(this.addSource(f, true));
+    if (this.paused || !this.ready) return;
+    const s = findSessions(this.workspacePaths());
+    if (!s) return;
+    // Otra carpeta (p. ej. ha aparecido la sesión de este proyecto): se empieza de cero.
+    if (s.dir !== this.sessionDir || s.own !== this.sessionOwn) return this.connect();
+    this.mainFile = s.main;
+    // Misma carpeta: una sesión nueva (otro Claude, o /clear) se añade sin vaciar el panel.
+    for (const main of s.files) {
+      for (const f of [main, ...subagentFiles(main)]) {
+        if (!this.sources.has(f)) {
+          this.log(`Also following ${path.basename(f)}`);
+          this.emit(this.addSource(f, f !== main));
+        }
+      }
     }
   }
 
   private poll() {
-    if (this.paused) return;
+    if (this.paused || !this.ready) return;
     for (const [file, src] of this.sources) {
       try {
         this.emit(this.read(src));
+        if (this.readError === file) {
+          this.readError = undefined;
+          this.post({ type: "status", text: "" });
+        }
       } catch (err) {
+        if (this.readError !== file) this.log(`Can't read ${file}: ${(err as Error).message}`);
+        this.readError = file;
         this.post({ type: "status", text: t("Can't read {0}: {1}", path.basename(file), (err as Error).message) });
       }
     }
@@ -209,9 +261,18 @@ class PreviewProvider implements vscode.WebviewViewProvider {
     const uri = (f: string) => webview.asWebviewUri(vscode.Uri.file(f)).toString();
     let src: string | undefined;
     let versions: { src: string; timestamp?: string }[] = [];
+    let missingText: string | undefined;
 
     if (e.kind === "image" || e.kind === "svg") {
-      const bytes = e.data ? Buffer.from(e.data, "base64") : e.path ? readSmall(e.path) : undefined;
+      const r = e.data ? { bytes: Buffer.from(e.data, "base64") } : e.path ? readMedia(e.path) : {};
+      const bytes = r.bytes;
+      if (r.problem === "big" && e.path) {
+        // Demasiado grande para copiarla y guardar versiones: se enseña directamente del disco.
+        const mtime = fs.statSync(e.path).mtimeMs;
+        src = webview.asWebviewUri(vscode.Uri.file(e.path)).with({ query: `v=${Math.round(mtime)}` }).toString();
+      } else if (r.problem === "unreadable") {
+        missingText = t("Can't read the file ({0})", r.detail ?? "");
+      }
       if (bytes && e.path) {
         const list = this.versions.record(e.path, bytes, e.timestamp);
         if (list) {
@@ -240,12 +301,17 @@ class PreviewProvider implements vscode.WebviewViewProvider {
       src,
       versions: versions.length > 1 ? versions : undefined,
       missing: !src && e.kind !== "html",
+      missingText,
     };
   }
 
   private onMessage(m: any) {
     const p = typeof m?.path === "string" ? m.path : undefined;
     switch (m?.type) {
+      case "ready":
+        this.ready = true;
+        this.connect();
+        break;
       case "open":
         if (p) vscode.commands.executeCommand("vscode.open", vscode.Uri.file(p));
         break;
@@ -380,7 +446,7 @@ class PreviewProvider implements vscode.WebviewViewProvider {
   </div>
   <div id="selbar" hidden><span id="selcount"></span><button id="compare" class="primary"><i class="codicon codicon-layout"></i> ${escapeHtml(t("Compare"))}</button><button id="selclear" title="${escapeHtml(t("Clear selection"))}"><i class="codicon codicon-close"></i></button></div>
 </div>
-<div id="status"></div><div id="list"></div>
+<div id="notice" hidden></div><div id="status"></div><div id="list"></div>
 <script nonce="${nonce}" src="${media("panel.js")}"></script></body></html>`;
   }
 }
@@ -402,6 +468,8 @@ function sendToClaude(text: string) {
   }
   term.show(false);
   term.sendText(text, false);
+  // Si no es la de Claude, que se sepa dónde ha ido a parar.
+  if (!/claude/i.test(term.name)) vscode.window.setStatusBarMessage(t("Typed into the “{0}” terminal (no terminal is named “claude”)", term.name), 6000);
 }
 
 /**
@@ -440,10 +508,11 @@ function openHtmlPanel(file: string) {
   let scripts = false;
   const render = () => {
     let content: string;
+    const skipped: string[] = [];
     try {
       // Solo se embebe lo de su proyecto (o de su carpeta, si no está en ninguno).
       const root = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file))?.uri.fsPath ?? path.dirname(file);
-      content = inlineLocalAssets(fs.readFileSync(file, "utf8"), path.dirname(file), root);
+      content = inlineLocalAssets(fs.readFileSync(file, "utf8"), path.dirname(file), root, skipped);
     } catch (err) {
       panel.webview.html = `<p>${escapeHtml(t("Can't open {0}: {1}", file, (err as Error).message))}</p>`;
       return;
@@ -455,8 +524,8 @@ function openHtmlPanel(file: string) {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src 'self' about:; img-src https: data:; media-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:; script-src ${scripts ? "'unsafe-inline' https:" : `'nonce-${nonce}'`};">
 <style>html,body{margin:0;height:100%;display:flex;flex-direction:column;font:13px system-ui}
 .bar{padding:6px 10px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #8884}
-.bar span{flex:1}iframe{flex:1;border:0;background:#fff}</style></head><body>
-<div class="bar"><span>${escapeHtml(scripts ? t("Scripts enabled") : t("Safe mode: no scripts"))}</span>
+.bar>span{flex:1}.warn{color:var(--vscode-editorWarning-foreground,#b58900);cursor:help}iframe{flex:1;border:0;background:#fff}</style></head><body>
+<div class="bar"><span>${escapeHtml(scripts ? t("Scripts enabled") : t("Safe mode: no scripts"))}${missingNote(skipped)}</span>
 <button id="r">${escapeHtml(t("Reload"))}</button><button id="t">${escapeHtml(scripts ? t("Disable scripts") : t("Enable scripts"))}</button></div>
 <iframe sandbox="${scripts ? "allow-scripts" : ""}" srcdoc="${srcdoc}"></iframe>
 <script nonce="${nonce}">const v=acquireVsCodeApi();document.getElementById('t').onclick=()=>v.postMessage('toggle');document.getElementById('r').onclick=()=>v.postMessage('reload');</script>
@@ -467,6 +536,15 @@ function openHtmlPanel(file: string) {
     if (m === "toggle" || m === "reload") render();
   });
   render();
+}
+
+/** «N archivos sin cargar», con la lista al pasar el ratón. */
+function missingNote(skipped: string[]): string {
+  const list = [...new Set(skipped)];
+  if (!list.length) return "";
+  const text = list.length === 1 ? t("1 local file not loaded") : t("{0} local files not loaded", list.length);
+  const tip = t("Outside the project, missing, too big or not an allowed type:") + "\n" + list.slice(0, 20).join("\n");
+  return ` · <span class="warn" title="${escapeHtml(tip)}">${escapeHtml(text)}</span>`;
 }
 
 function escapeHtml(s: string): string {
@@ -511,12 +589,14 @@ function diskRoots(): vscode.Uri[] {
   return roots;
 }
 
-function readSmall(file: string): Buffer | undefined {
+/** Lee una imagen para copiarla; si no se puede, dice por qué (no es lo mismo «borrada» que «sin permiso» o «enorme»). */
+function readMedia(file: string): { bytes?: Buffer; problem?: "gone" | "big" | "unreadable"; detail?: string } {
   try {
-    if (fs.statSync(file).size > MAX_INLINE_BYTES) return undefined;
-    return fs.readFileSync(file);
-  } catch {
-    return undefined;
+    if (fs.statSync(file).size > MAX_INLINE_BYTES) return { problem: "big" };
+    return { bytes: fs.readFileSync(file) };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR" ? { problem: "gone" } : { problem: "unreadable", detail: code ?? (err as Error).message };
   }
 }
 
@@ -538,6 +618,7 @@ function panelStrings(): Record<string, string> {
     read: t("read"),
     viewHtml: t("View rendered HTML"),
     fileGone: t("The file is no longer on disk"),
+    cantShow: t("VS Code can't show this file (unsupported format or damaged file)"),
     change: t("Change"),
     changeTip: t("Types the path into Claude's chat so you can ask for a change"),
     beforeAfter: t("Before/after"),

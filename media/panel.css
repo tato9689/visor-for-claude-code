@@ -36,6 +36,7 @@ button.on {
 }
 
 #status { opacity: 0.7; margin: 4px 0 8px; }
+#notice { margin: 6px 0 2px; padding: 6px 8px; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); background: var(--vscode-textBlockQuote-background, #8881); font-size: 0.95em; }
 
 /* ---- tarjetas ---- */
 .card {
