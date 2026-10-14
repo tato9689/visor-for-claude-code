@@ -6,6 +6,8 @@ See what Claude Code sees. A side panel in VS Code that shows, live, the **image
 
 Today the official extension shows `[Image]` in the chat: Claude sees the picture, you don't. This fixes that.
 
+![Visor showing a before/after slider next to Claude Code's terminal](docs/screenshot-before-after.png)
+
 ![Demo](docs/demo.gif)
 
 ## Features

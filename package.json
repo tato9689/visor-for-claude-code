@@ -2,27 +2,39 @@
   "name": "visor-for-claude-code",
   "displayName": "Visor — media previews for Claude Code",
   "description": "See the images, SVG, HTML and video Claude Code reads or creates, live in a side panel. Before/after, variants, crisp pixel art. Works over Remote-SSH.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "publisher": "tato9689",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/tato9689/visor-for-claude-code"
   },
+  "homepage": "https://tato9689.com/proyectos-ia/visor/",
+  "bugs": {
+    "url": "https://github.com/tato9689/visor-for-claude-code/issues"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
     "Visualization",
+    "AI",
     "Other"
   ],
   "keywords": [
     "claude",
     "claude code",
+    "anthropic",
     "preview",
-    "images",
+    "image preview",
     "image viewer",
+    "screenshot",
+    "svg",
+    "html preview",
+    "video",
+    "mcp",
     "before after",
+    "compare images",
     "pixel art",
     "remote-ssh",
     "ai"
