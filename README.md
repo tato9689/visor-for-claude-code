@@ -1,8 +1,8 @@
-# Visor — media previews for Claude Code
+# Visor for Claude Code — image, SVG, HTML & video preview
 
 > Unofficial. Not affiliated with Anthropic.
 
-See what Claude Code sees. A side panel in VS Code that shows, live, the **images, SVG, HTML and video** Claude Code reads or creates — including when Claude runs on a remote server over **Remote-SSH**.
+See what Claude Code sees. **Image, SVG, HTML and video preview for Claude Code**: a side panel in VS Code (and Cursor, VSCodium, Windsurf) that shows, live, the files Claude Code reads or creates — including when Claude runs on a remote server over **Remote-SSH**.
 
 Today the official extension shows `[Image]` in the chat: Claude sees the picture, you don't. This fixes that.
 
